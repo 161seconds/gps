@@ -1,74 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>Pegaxus · GPS sandbox</title>
-  <link rel="stylesheet" href="/vendor/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=3">
-  <script defer src="/vendor/leaflet.js"></script>
-  <script defer src="/vendor/signalr.min.js"></script>
-  <script defer src="/app.js?v=5"></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin">
+<title>GPS realtime</title><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=7">
+<script defer src="/vendor/leaflet.js"></script><script defer src="/vendor/signalr.min.js"></script><script defer src="/app.js?v=7"></script>
 </head>
 <body>
-  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <symbol id="i-location" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
-    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
-    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7Z"/></symbol>
-    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
-    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5V4H4v11h1"/></symbol>
-    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol>
-    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></symbol>
-    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
-  </svg>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-location"/></svg></span><span>Pegaxus<span class="brand-caption">Transport operations</span></span></div>
-      <div class="topbar-status"><span class="environment">GPS sandbox</span><span id="connection" class="badge" role="status">Not connected</span></div>
-    </div>
-  </header>
-  <div class="workspace">
-    <div class="page-heading">
-      <div><p class="eyebrow">WORKSPACE <span>/</span> REALTIME GPS</p><h1>Trip tracking<span class="heading-dot">.</span></h1><p class="intro">Share a location from your phone. Follow the journey here.</p></div>
-      <div class="workspace-label"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>Private trip links<br><small>Separate driver &amp; viewer access</small></span></div>
-    </div>
-    <main>
-      <section class="panel controls" aria-label="Trip controls">
-        <div class="panel-heading"><span class="section-label">YOUR SESSION</span><span class="panel-icon"><svg class="icon" aria-hidden="true"><use href="#i-target"/></svg></span></div>
-        <h2 id="role">Set up your trip</h2>
-        <p id="trip">A driver shares their location. Everyone with the viewer link can follow along.</p>
-        <ol class="setup-guide"><li><span>01</span><div><strong>Create a test trip</strong><p>Get two private links for this session.</p></div></li><li><span>02</span><div><strong>Connect your phone</strong><p>Open the driver link and allow GPS.</p></div></li><li><span>03</span><div><strong>Follow in real time</strong><p>Open the viewer link on another screen.</p></div></li></ol>
-        <div class="buttons setup-actions"><button id="create">Create test trip <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button><button id="retry" class="secondary" hidden>Retry connection</button></div>
-        <div id="driver-controls" hidden>
-          <div class="buttons sharing-actions"><button id="gps"><svg class="icon" aria-hidden="true"><use href="#i-target"/></svg>Start GPS</button><button id="simulate" class="secondary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>Run simulation</button><button id="stop" class="stop-button" disabled><svg class="icon" aria-hidden="true"><use href="#i-stop"/></svg>Stop sharing</button></div>
-          <p id="sharing" role="status">Not sharing</p>
-        </div>
-        <p id="error" role="alert" hidden></p>
-        <div id="trip-recovery" hidden><a class="recovery-link" href="/?new-trip">Create a new test trip</a></div>
-        <div id="links" hidden>
-          <div class="section-divider"><h3>Invite another screen</h3><span>PRIVATE</span></div>
-          <label for="driver-link"><svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg>Driver link <span>Can share location</span></label>
-          <div class="link-row"><input id="driver-link" readonly spellcheck="false"><button class="secondary copy-button" data-copy="driver-link" aria-label="Copy driver link"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
-          <label for="viewer-link"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>Viewer link <span>Read only</span></label>
-          <div class="link-row"><input id="viewer-link" readonly spellcheck="false"><button class="secondary copy-button" data-copy="viewer-link" aria-label="Copy viewer link"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
-          <p id="expiry"></p><p id="copy-status" role="status"></p>
-        </div>
-        <aside class="note"><svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg><div><strong>Keep your driver page open</strong><p>GPS may pause in the background or when your screen locks.</p><details><summary>Before you share</summary><p>Real GPS requires HTTPS and location permission. Treat both share links as secrets.</p></details></div></aside>
-      </section>
-      <section class="map-panel" aria-label="Live location map">
-        <div class="map-heading"><div><span class="section-label">LIVE VIEW</span><h2>Journey map</h2></div><span id="freshness" class="badge">No location</span></div>
-        <div class="map-content"><div id="map" aria-label="Map showing the latest trip location"></div><div class="map-empty"><span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-target"/></svg></span><div><strong>Waiting for a location</strong><p>Updates appear when the driver starts sharing.</p></div></div></div>
-        <div class="map-caption"><span><i class="legend-dot"></i>Latest position <i class="legend-line"></i>Session trail</span><span>Trail stays in this browser</span></div>
-      </section>
-      <section class="panel details" aria-label="Latest location details">
-        <div class="details-heading"><h2>Location details</h2><span>Latest update</span></div>
-        <dl class="metrics"><div><dt>Coordinates</dt><dd id="coordinates">Waiting for location</dd></div><div><dt>GPS accuracy</dt><dd id="accuracy">—</dd></div><div><dt>Location source</dt><dd id="source">No location yet</dd></div></dl>
-        <dl class="timestamps"><div><dt>Captured</dt><dd id="captured">—</dd></div><div><dt>Last received</dt><dd id="received">—</dd></div><div><dt>Age / transit delay</dt><dd id="age">—</dd></div></dl>
-      </section>
-    </main>
-    <footer class="workspace-footer"><span>Pegaxus <span class="footer-divider">/</span> GPS test workspace</span><span>Test session · locations are not saved</span></footer>
-  </div>
-</body>
-</html>
+<header><div><a href="/">GPS <small>realtime</small></a><div class="header-actions"><button id="theme" class="secondary" aria-pressed="false">Chế độ tối</button><span id="connection" class="badge" role="status">Đang kết nối</span></div></div></header>
+<main>
+<div class="heading"><p class="eyebrow">THỬ GPS TRỰC TIẾP</p><h1>Mỗi bước di chuyển, một vị trí mới.</h1><p>Mở cùng link trên điện thoại và máy tính để xem GPS cập nhật.</p></div>
+<div class="workspace">
+<section class="panel controls" aria-label="Chọn điểm và bật GPS">
+<h2>Điểm đầu & điểm cuối</h2><p>Chọn nút, rồi chạm bản đồ. Hai điểm được lưu tự động.</p>
+<button id="choose-start" class="secondary endpoint" aria-pressed="false"><b>A</b>Chọn điểm đầu</button>
+<label for="start-coordinates">Tọa độ điểm đầu</label><input id="start-coordinates" readonly value="Chưa chọn">
+<button id="choose-end" class="secondary endpoint" aria-pressed="false"><b class="end">B</b>Chọn điểm cuối</button>
+<label for="end-coordinates">Tọa độ điểm cuối</label><input id="end-coordinates" readonly value="Chưa chọn">
+<p id="route-status" role="status">Chưa có hai điểm.</p><hr>
+<h2>GPS của điện thoại</h2><div class="buttons"><button id="gps">Bật GPS</button><button id="stop" class="secondary" disabled>Dừng</button></div>
+<p id="sharing" role="status">Chưa gửi vị trí.</p><button id="retry" class="secondary" hidden>Kết nối lại</button><p id="error" role="alert" hidden></p>
+<aside>Điện thoại cần HTTPS và quyền vị trí. Giữ trang mở; GPS có thể dừng khi khóa màn hình.</aside>
+</section>
+<section class="panel map-panel" aria-label="Bản đồ GPS trực tiếp">
+<div class="map-heading"><h2>Bản đồ trực tiếp</h2><span id="freshness" class="badge">Chưa có GPS</span></div>
+<div id="map" aria-label="Bản đồ điểm đầu, điểm cuối và GPS hiện tại"></div>
+<div class="map-caption"><span><i></i> GPS hiện tại · Vệt di chuyển</span><span>Đường nối hai điểm, không phải tuyến đường</span></div>
+<dl><div><dt>Vị trí hiện tại</dt><dd id="coordinates">Chưa có vị trí</dd></div><div><dt>Độ chính xác</dt><dd id="accuracy">—</dd></div><div><dt>Cập nhật gần nhất</dt><dd id="received">—</dd></div></dl>
+</section>
+</div><footer>Ai có link đều xem và gửi vị trí. <span>Vệt di chuyển chỉ lưu trong tab này.</span></footer>
+</main>
+</body></html>
