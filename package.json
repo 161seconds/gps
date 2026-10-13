@@ -1,0 +1,13 @@
+{
+  "name": "pegaxus-gps-sandbox",
+  "private": true,
+  "scripts": {
+    "postinstall": "node scripts/vendor.mjs",
+    "start": "dotnet run --project GpsDemo.csproj",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "@microsoft/signalr": "8.0.29",
+    "leaflet": "1.9.4"
+  }
+}
