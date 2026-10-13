@@ -2,8 +2,8 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin">
-<title>GPS realtime</title><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=7">
-<script defer src="/vendor/leaflet.js"></script><script defer src="/vendor/signalr.min.js"></script><script defer src="/app.js?v=7"></script>
+<title>GPS realtime</title><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=8">
+<script defer src="/vendor/leaflet.js"></script><script defer src="/vendor/signalr.min.js"></script><script defer src="/app.js?v=8"></script>
 </head>
 <body>
 <header><div><a href="/">GPS <small>realtime</small></a><div class="header-actions"><button id="theme" class="secondary" aria-pressed="false">Chế độ tối</button><span id="connection" class="badge" role="status">Đang kết nối</span></div></div></header>
@@ -11,10 +11,12 @@
 <div class="heading"><p class="eyebrow">THỬ GPS TRỰC TIẾP</p><h1>Mỗi bước di chuyển, một vị trí mới.</h1><p>Mở cùng link trên điện thoại và máy tính để xem GPS cập nhật.</p></div>
 <div class="workspace">
 <section class="panel controls" aria-label="Chọn điểm và bật GPS">
-<h2>Điểm đầu & điểm cuối</h2><p>Chọn nút, rồi chạm bản đồ. Hai điểm được lưu tự động.</p>
+<h2>Điểm đầu & điểm cuối</h2><p>Chạm bản đồ hoặc dán link Google Maps. Hai điểm được lưu tự động.</p>
 <button id="choose-start" class="secondary endpoint" aria-pressed="false"><b>A</b>Chọn điểm đầu</button>
+<form id="start-link-form" class="map-link"><label for="start-link">Link Google Maps điểm đầu</label><div><input id="start-link" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..." maxlength="1500" autocomplete="off" spellcheck="false" required><button class="secondary" type="submit">Dùng link</button></div></form>
 <label for="start-coordinates">Tọa độ điểm đầu</label><input id="start-coordinates" readonly value="Chưa chọn">
 <button id="choose-end" class="secondary endpoint" aria-pressed="false"><b class="end">B</b>Chọn điểm cuối</button>
+<form id="end-link-form" class="map-link"><label for="end-link">Link Google Maps điểm cuối</label><div><input id="end-link" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..." maxlength="1500" autocomplete="off" spellcheck="false" required><button class="secondary" type="submit">Dùng link</button></div></form>
 <label for="end-coordinates">Tọa độ điểm cuối</label><input id="end-coordinates" readonly value="Chưa chọn">
 <p id="route-status" role="status">Chưa có hai điểm.</p><hr>
 <h2>GPS của điện thoại</h2><div class="buttons"><button id="gps">Bật GPS</button><button id="stop" class="secondary" disabled>Dừng</button></div>

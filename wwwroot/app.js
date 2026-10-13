@@ -128,13 +128,35 @@ async function saveRoute() {
   } catch { error('Chưa lưu được hai điểm. Chọn lại điểm để thử lại.'); $('route-status').textContent = 'Hai điểm chưa được lưu.'; }
   finally { routeSaving = false; if (deferredRoute) { const route = deferredRoute; deferredRoute = undefined; applyRoute(route); } if (routePending) saveRoute(); }
 }
+function setEndpoint(endpoint, point) {
+  if (endpoint === 'start') startPoint = point; else endPoint = point;
+  selecting = undefined; $('choose-start').setAttribute('aria-pressed', 'false'); $('choose-end').setAttribute('aria-pressed', 'false'); drawRoute();
+  error();
+  if (startPoint && endPoint) { routePending = { start: startPoint, end: endPoint }; saveRoute(); } else $('route-status').textContent = 'Chọn thêm điểm còn lại.';
+}
+async function useMapLink(endpoint) {
+  const input = $(`${endpoint}-link`), button = $(`${endpoint}-link-form`).querySelector('button');
+  if (button.disabled) return;
+  const previous = JSON.stringify(endpoint === 'start' ? startPoint : endPoint);
+  let message = 'Không đọc được link Google Maps. Kiểm tra mạng hoặc chọn điểm trên bản đồ.';
+  button.disabled = input.disabled = true; button.textContent = 'Đang đọc…'; error();
+  const request = new AbortController(), timeout = setTimeout(() => request.abort(), 12000);
+  try {
+    const response = await fetch('/api/maps/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: input.value.trim() }), signal: request.signal });
+    const point = await response.json();
+    if (!response.ok) { message = point.error || message; throw new Error(); }
+    if (JSON.stringify(endpoint === 'start' ? startPoint : endPoint) !== previous) { error('Điểm đã thay đổi khi đọc link. Nhấn Dùng link lần nữa nếu muốn thay thế.'); return; }
+    setEndpoint(endpoint, point);
+    map.fitBounds([startPoint || point, endPoint || point].map(p => [p.latitude, p.longitude]), { padding: [24, 24], maxZoom: 16 });
+  } catch { error(request.signal.aborted ? 'Đọc link quá lâu. Thử lại hoặc chọn điểm trên bản đồ.' : message); }
+  finally { clearTimeout(timeout); button.disabled = input.disabled = false; button.textContent = 'Dùng link'; }
+}
 map.on('click', event => {
   if (!selecting) return;
   const point = { latitude: event.latlng.lat, longitude: event.latlng.lng };
-  if (Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) { error('Chọn điểm trong phạm vi bản đồ thế giới.'); return; }
-  if (selecting === 'start') startPoint = point; else endPoint = point;
-  selecting = undefined; $('choose-start').setAttribute('aria-pressed', 'false'); $('choose-end').setAttribute('aria-pressed', 'false'); drawRoute();
-  if (startPoint && endPoint) { routePending = { start: startPoint, end: endPoint }; saveRoute(); } else $('route-status').textContent = 'Chọn thêm điểm còn lại.';
+  if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) { error('Chọn điểm trong phạm vi bản đồ thế giới.'); return; }
+  setEndpoint(selecting, point);
 });
+for (const endpoint of ['start', 'end']) $(`${endpoint}-link-form`).onsubmit = event => { event.preventDefault(); useMapLink(endpoint); };
 $('choose-start').onclick = () => choose('start'); $('choose-end').onclick = () => choose('end'); $('gps').onclick = startGps; $('stop').onclick = stop; $('retry').onclick = connect;
 setInterval(updateAge, 1000); window.addEventListener('pagehide', stop); connect();

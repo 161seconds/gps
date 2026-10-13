@@ -37,21 +37,21 @@ const app = readFileSync(new URL('../wwwroot/app.js', import.meta.url), 'utf8');
 function frontend(saved = null, systemDark = true) {
   const elements = new Map(), storage = new Map(saved ? [['gps-theme', saved]] : []);
   const document = { documentElement: { dataset: {} }, getElementById(id) {
-    if (!elements.has(id)) elements.set(id, { setAttribute(name, value) { this[name] = value; }, classList: { toggle() {} } });
+    if (!elements.has(id)) elements.set(id, { value: '', button: {}, querySelector() { return this.button; }, addEventListener() {}, setAttribute(name, value) { this[name] = value; }, classList: { toggle() {} } });
     return elements.get(id);
   } };
   const layer = (points = []) => ({ points, addTo() { return this; }, bindTooltip() { return this; },
     setLatLng(value) { this.points = value; return this; }, setRadius() { return this; },
     setLatLngs(value) { this.points = value; return this; }, getLatLngs() { return this.points; } });
-  const map = { setView() { return this; }, removeLayer(value) { value.removed = true; } };
-  const hub = { on() {}, invoke: async () => ({ start: null, end: null, location: null, routeSequence: 0 }) };
+  const map = { on() {}, setView() { return this; }, fitBounds(points) { this.bounds = points; return this; }, removeLayer(value) { value.removed = true; } };
+  const hub = { state: 'Disconnected', start: () => new Promise(() => {}), on() {}, onreconnecting() {}, onreconnected() {}, onclose() {}, invoke: async () => ({ start: null, end: null, location: null, routeSequence: 0 }) };
   const context = createContext({ document, history: { replaceState() {} }, location: { pathname: '/' },
-    window: { matchMedia: () => ({ matches: systemDark }) },
+    window: { matchMedia: () => ({ matches: systemDark }), addEventListener() {} }, setInterval() {}, setTimeout, clearTimeout, AbortController,
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
     L: { map: () => map, tileLayer: layer, polyline: layer, circleMarker: layer, circle: layer, marker: layer, divIcon: value => value, latLng: (lat, lng) => ({ lat, lng }) },
-    signalR: { HubConnectionBuilder: class { withUrl() { return this; } withAutomaticReconnect() { return this; } build() { return hub; } } } });
-  runInContext(app.slice(0, app.indexOf('async function connected()')), context);
-  return { context, document, storage, hub, theme: document.getElementById('theme') };
+    signalR: { HubConnectionState: { Disconnected: 'Disconnected' }, HubConnectionBuilder: class { withUrl() { return this; } withAutomaticReconnect() { return this; } build() { return hub; } } } });
+  runInContext(app, context);
+  return { context, document, storage, hub, map, theme: document.getElementById('theme') };
 }
 async function checkFrontend() {
   const ui = frontend();
@@ -80,12 +80,57 @@ async function checkFrontend() {
   await runInContext('sync()', ui.context);
   assert.equal(runInContext('latest.sequence', ui.context), 2, 'buffered newer GPS survives snapshot');
   assert.equal(runInContext('marker.points[0]', ui.context), 12);
+  const imported = frontend(), routes = [];
+  const endpoints = [{ latitude: 10.7769, longitude: 106.7009 }, { latitude: 10.779, longitude: 106.705 }];
+  imported.context.fetch = async (path, options) => {
+    const body = JSON.parse(options.body);
+    if (path === '/api/maps/resolve') return { ok: true, json: async () => endpoints[body.url.endsWith('start') ? 0 : 1] };
+    assert.equal(path, '/api/route'); routes.push(body);
+    return { ok: true, json: async () => ({ ...body, sequence: routes.length }) };
+  };
+  for (const endpoint of ['start', 'end']) {
+    imported.document.getElementById(`${endpoint}-link`).value = `https://maps.app.goo.gl/${endpoint}`;
+    await runInContext(`useMapLink('${endpoint}')`, imported.context);
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.deepEqual(routes, [{ start: endpoints[0], end: endpoints[1] }], 'imported A/B autosave');
+  assert.equal(runInContext('startMarker.points[0]', imported.context), endpoints[0].latitude);
+  assert.equal(runInContext('endMarker.points[1]', imported.context), endpoints[1].longitude);
+  assert.deepEqual(JSON.parse(JSON.stringify(imported.map.bounds)), endpoints.map(p => [p.latitude, p.longitude]), 'import frames both endpoints');
+  const before = runInContext('JSON.stringify([startPoint, endPoint])', imported.context);
+  imported.context.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: 'Invalid link' }) });
+  await runInContext("useMapLink('start')", imported.context);
+  assert.equal(runInContext('JSON.stringify([startPoint, endPoint])', imported.context), before, 'failed import preserves endpoints');
+  assert.equal(routes.length, 1, 'failed import does not save route');
+  let finishResolve;
+  imported.context.fetch = () => new Promise(resolve => { finishResolve = resolve; });
+  const resolving = runInContext("useMapLink('start')", imported.context);
+  runInContext('startPoint = { latitude: 21, longitude: 105 }; drawRoute();', imported.context);
+  finishResolve({ ok: true, json: async () => endpoints[0] });
+  await resolving;
+  assert.equal(runInContext('startPoint.latitude', imported.context), 21, 'late link does not overwrite newer point');
+  assert.equal(imported.document.getElementById('start-link-form').button.disabled, false, 'resolve releases button');
 }
 
 try {
   await checkFrontend();
   for (const path of ['/api/health', '/', '/app.js', '/style.css', '/vendor/leaflet.js', '/vendor/signalr.min.js'])
     assert.equal((await request(path)).status, 200, path);
+  for (const url of ['https://www.google.com/maps/place/Test/@1,2,17z/data=!3d10.7769!4d106.7009',
+    'https://www.google.com/maps/place/Test/@1,2,17z/data=!3d10.7769!4d106.7009?entry=ttu',
+    ...['q', 'query', 'll', 'center'].map(key => `https://www.google.com/maps?${key}=10.7769,106.7009`),
+    'https://www.google.com/maps/@10.7769,106.7009,17z']) {
+    const response = await request('/api/maps/resolve', { url });
+    assert.equal(response.status, 200, url);
+    assert.deepEqual(await response.json(), { latitude: 10.7769, longitude: 106.7009 });
+  }
+  for (const url of ['http://www.google.com/maps?q=1,2', 'https://example.com/maps?q=1,2',
+    'https://www.google.com/maps?q=NaN,2', 'https://www.google.com/maps?q=91,2',
+    'https://www.google.com/maps?q=1,181', 'https://www.google.com/maps/place/Test',
+    'https://www.google.com/maps/place/Test/@1,2,17z', 'https://www.google.com/maps/dir/1,2/3,4',
+    'https://user@www.google.com/maps?q=1,2', 'https://www.google.com:444/maps?q=1,2',
+    'https://www.google.com/maps/search/?query=1,2&query_place_id=place-id'])
+    assert.equal((await request('/api/maps/resolve', { url })).status, 400, url);
   const a = await viewer(), b = await viewer();
   const initial = await (await request('/api/state')).json();
   for (const connection of connections) assert.deepEqual(await connection.invoke('GetState'), initial);
@@ -125,7 +170,7 @@ try {
   await a.stop();
   await a.start();
   assert.deepEqual(await a.invoke('GetState'), expected, 'reconnect snapshot');
-  console.log('PASS: theme persistence, frontend reconnect/reset, assets, route/GPS validation, two viewers, ordering, snapshots.');
+  console.log('PASS: Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
 } finally {
   await Promise.all(connections.map(connection => connection.stop()));
 }

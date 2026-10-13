@@ -29,6 +29,8 @@ app.MapPost("/api/route", async (RouteInput input, GpsTracker tracker) =>
     Results.Ok(await tracker.SetRouteAsync(input)));
 app.MapPost("/api/location", async (LocationInput input, GpsTracker tracker) =>
     Results.Ok(await tracker.PublishAsync(input)));
+app.MapPost("/api/maps/resolve", async (MapsLinkInput input, HttpContext context) =>
+    Results.Ok(await GoogleMapsLink.ResolveAsync(input.Url, context.RequestAborted)));
 app.MapHub<TrackingHub>("/hubs/tracking");
 app.Run();
 

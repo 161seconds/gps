@@ -19,6 +19,8 @@ Mở `http://localhost:5085`.
 4. Trên điện thoại, nhấn **Bật GPS**, cấp quyền vị trí. Di chuyển để thấy điểm GPS cập nhật trên cả hai màn.
 5. Nhấn **Dừng** để ngừng gửi GPS.
 
+Có thể dán link Google Maps vào ô điểm đầu/cuối, nhấn **Dùng link**. Hỗ trợ link địa điểm có tọa độ, link `q`/`query`/`ll`/`center` và link chia sẻ rút gọn `maps.app.goo.gl` / `goo.gl/maps`. Bản đồ tự đưa hai điểm vào khung nhìn. Link chỉ có tên/ID địa điểm hoặc chứa nhiều điểm chỉ đường cần chọn lại một điểm trên Google Maps rồi chia sẻ.
+
 Nút **Chế độ tối / Chế độ sáng** ở đầu trang đổi giao diện, nhớ lựa chọn trên thiết bị. Lần đầu theo giao diện hệ thống; nền bản đồ giữ màu OpenStreetMap.
 
 Đường nối điểm đầu/cuối là đường thẳng để nhìn hai mốc, không phải tuyến đường lái xe. Điểm GPS độc lập với hai mốc này.
