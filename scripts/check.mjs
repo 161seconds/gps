@@ -36,20 +36,26 @@ async function publish(path, body, event) {
 const app = readFileSync(new URL('../wwwroot/app.js', import.meta.url), 'utf8');
 function frontend(saved = null, systemDark = true) {
   const elements = new Map(), storage = new Map(saved ? [['gps-theme', saved]] : []);
-  const document = { documentElement: { dataset: {} }, getElementById(id) {
-    if (!elements.has(id)) elements.set(id, { value: '', button: {}, querySelector() { return this.button; }, addEventListener() {}, setAttribute(name, value) { this[name] = value; }, classList: { toggle() {} } });
-    return elements.get(id);
-  } };
-  const layer = (points = []) => ({ points, addTo() { return this; }, bindTooltip() { return this; },
+  const document = {
+    documentElement: { dataset: {} }, getElementById(id) {
+      if (!elements.has(id)) elements.set(id, { value: '', button: {}, querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, classList: { toggle() { } } });
+      return elements.get(id);
+    }
+  };
+  const layer = (points = []) => ({
+    points, addTo() { return this; }, bindTooltip() { return this; },
     setLatLng(value) { this.points = value; return this; }, setRadius() { return this; },
-    setLatLngs(value) { this.points = value; return this; }, getLatLngs() { return this.points; } });
-  const map = { on() {}, setView() { return this; }, fitBounds(points) { this.bounds = points; return this; }, removeLayer(value) { value.removed = true; } };
-  const hub = { state: 'Disconnected', start: () => new Promise(() => {}), on() {}, onreconnecting() {}, onreconnected() {}, onclose() {}, invoke: async () => ({ start: null, end: null, location: null, routeSequence: 0 }) };
-  const context = createContext({ document, history: { replaceState() {} }, location: { pathname: '/' },
-    window: { matchMedia: () => ({ matches: systemDark }), addEventListener() {} }, setInterval() {}, setTimeout, clearTimeout, AbortController,
+    setLatLngs(value) { this.points = value; return this; }, getLatLngs() { return this.points; }
+  });
+  const map = { on() { }, setView() { return this; }, fitBounds(points) { this.bounds = points; return this; }, removeLayer(value) { value.removed = true; } };
+  const hub = { state: 'Disconnected', start: () => new Promise(() => { }), on() { }, onreconnecting() { }, onreconnected() { }, onclose() { }, invoke: async () => ({ start: null, end: null, location: null, routeSequence: 0 }) };
+  const context = createContext({
+    document, history: { replaceState() { } }, location: { pathname: '/' },
+    window: { matchMedia: () => ({ matches: systemDark }), addEventListener() { } }, setInterval() { }, setTimeout: (callback, delay) => setTimeout(callback, delay === 1100 ? 0 : delay), clearTimeout, AbortController, URL,
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
     L: { map: () => map, tileLayer: layer, polyline: layer, circleMarker: layer, circle: layer, marker: layer, divIcon: value => value, latLng: (lat, lng) => ({ lat, lng }) },
-    signalR: { HubConnectionState: { Disconnected: 'Disconnected' }, HubConnectionBuilder: class { withUrl() { return this; } withAutomaticReconnect() { return this; } build() { return hub; } } } });
+    signalR: { HubConnectionState: { Disconnected: 'Disconnected' }, HubConnectionBuilder: class { withUrl() { return this; } withAutomaticReconnect() { return this; } build() { return hub; } } }
+  });
   runInContext(app, context);
   return { context, document, storage, hub, map, theme: document.getElementById('theme') };
 }
@@ -110,6 +116,67 @@ async function checkFrontend() {
   await resolving;
   assert.equal(runInContext('startPoint.latitude', imported.context), 21, 'late link does not overwrite newer point');
   assert.equal(imported.document.getElementById('start-link-form').button.disabled, false, 'resolve releases button');
+  const directions = frontend(), requests = [], routing = directions.document.getElementById('routing');
+  const road = () => JSON.parse(runInContext('JSON.stringify(roadRoute.getLatLngs())', directions.context));
+  const flush = () => new Promise(resolve => setTimeout(resolve, 5));
+  directions.context.fetch = (url, options) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject }));
+  const response = (coordinates = [[106.701, 10.777], [106.703, 10.778], [106.704, 10.779]]) => ({ ok: true, json: async () => ({ code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates }, distance: 1234 }] }) });
+  runInContext('drawRoute()', directions.context);
+  assert.equal(routing.disabled, true, 'routing needs both endpoints');
+  directions.context.endpoints = endpoints;
+  runInContext('[startPoint, endPoint] = endpoints; drawRoute()', directions.context);
+  assert.equal(routing.disabled, false);
+  assert.equal(requests.length, 0, 'routing defaults off');
+  assert.deepEqual(road(), [], 'no straight endpoint line');
+  routing.checked = true;
+  routing.onchange(); await flush();
+  assert.equal(requests.length, 1);
+  const url = new URL(requests[0].url), query = JSON.parse(url.searchParams.get('json'));
+  assert.equal(url.origin + url.pathname, 'https://valhalla1.openstreetmap.de/route');
+  assert.deepEqual(query.locations, endpoints.map(point => ({ lat: point.latitude, lon: point.longitude, search_cutoff: 200 })));
+  assert.equal(query.costing, 'auto');
+  assert.deepEqual(query.costing_options.auto, { shortest: true, disable_hierarchy_pruning: true });
+  assert.equal(query.format, 'osrm');
+  assert.equal(query.shape_format, 'geojson');
+  runInContext('drawRoute()', directions.context);
+  assert.equal(requests.length, 1, 'same endpoints do not duplicate requests');
+  requests[0].resolve(response()); await flush();
+  assert.deepEqual(road(), [[10.777, 106.701], [10.778, 106.703], [10.779, 106.704]], 'only provider geometry with coordinate order reversed');
+  runInContext('drawRoute()', directions.context);
+  assert.equal(requests.length, 1, 'completed route survives duplicate endpoint echo');
+  const retry = directions.document.getElementById('directions-retry');
+  retry.onclick(); await flush();
+  assert.equal(requests.length, 2, 'retry fetches unchanged endpoints');
+  assert.deepEqual(road(), [], 'retry clears old route');
+  runInContext('endPoint = { latitude: 10.8, longitude: 106.8 }; drawRoute()', directions.context);
+  await flush();
+  assert.equal(requests[1].options.signal.aborted, true, 'endpoint edit aborts request');
+  assert.equal(requests.length, 3);
+  requests[1].resolve(response()); await flush();
+  assert.deepEqual(road(), [], 'late old endpoint result cannot repaint');
+  requests[2].resolve(response()); await flush();
+  assert.equal(road().length, 3);
+  retry.onclick(); await flush();
+  routing.checked = false; routing.onchange();
+  assert.equal(requests[3].options.signal.aborted, true, 'disabling routing aborts request');
+  requests[3].resolve(response()); await flush();
+  assert.deepEqual(road(), [], 'late result cannot repaint disabled routing');
+  routing.checked = true; routing.onchange(); await flush();
+  requests[4].resolve({ ok: false, status: 503 }); await flush();
+  assert.deepEqual(road(), [], 'HTTP failure leaves no route');
+  assert.equal(retry.hidden, false, 'HTTP failure offers retry');
+  for (const result of [{ code: 'NoRoute', routes: [] }, { code: 'Ok', routes: [] },
+    { code: 'Ok', warnings: [{ code: 205 }], routes: [{ geometry: { type: 'LineString', coordinates: [[106, 10], [107, 11]] }, distance: 10 }] },
+  { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: [] }, distance: 0 }] },
+  { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: [[106, 10], [181, 10]] }, distance: 10 }] },
+  { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: [[106, 10], [107, 11]] }, distance: -1 }] }]) {
+    retry.onclick(); await flush(); requests.at(-1).resolve({ ok: true, json: async () => result }); await flush();
+    assert.deepEqual(road(), [], 'missing provider route leaves no geometry');
+    assert.equal(retry.hidden, false, 'missing route offers retry');
+  }
+  retry.onclick(); await flush(); requests.at(-1).reject(new Error('network unavailable')); await flush();
+  assert.deepEqual(road(), [], 'network failure leaves no route');
+  assert.equal(retry.hidden, false, 'network failure offers retry');
 }
 
 try {
@@ -136,16 +203,16 @@ try {
   for (const connection of connections) assert.deepEqual(await connection.invoke('GetState'), initial);
   const route = { start: { latitude: 10.7769, longitude: 106.7009 }, end: { latitude: 10.779, longitude: 106.705 } };
   for (const invalid of [{}, { start: route.start }, { ...route, start: {} },
-    { ...route, start: { latitude: 91, longitude: 0 } }, { ...route, end: { latitude: 0, longitude: -181 } },
-    { ...route, end: { latitude: null, longitude: 0 } }])
+  { ...route, start: { latitude: 91, longitude: 0 } }, { ...route, end: { latitude: 0, longitude: -181 } },
+  { ...route, end: { latitude: null, longitude: 0 } }])
     assert.equal((await request('/api/route', invalid)).status, 400, 'invalid route');
   const savedRoute = await publish('/api/route', route, 'RouteUpdated');
   assert.deepEqual(savedRoute, { ...route, sequence: initial.routeSequence + 1 });
   const captured = Math.max(Date.now(), initial.location ? Date.parse(initial.location.capturedAt) + 1 : 0);
   const point = { latitude: 10.777, longitude: 106.702, accuracy: 8, capturedAt: new Date(captured).toISOString() };
   for (const invalid of [{ latitude: 91 }, { longitude: -181 }, { latitude: null }, { accuracy: -1 },
-    { accuracy: null }, { capturedAt: 'invalid' }, { capturedAt: new Date(Date.now() - 660000).toISOString() },
-    { capturedAt: new Date(Date.now() + 60000).toISOString() }])
+  { accuracy: null }, { capturedAt: 'invalid' }, { capturedAt: new Date(Date.now() - 660000).toISOString() },
+  { capturedAt: new Date(Date.now() + 60000).toISOString() }])
     assert.equal((await request('/api/location', { ...point, ...invalid })).status, 400, 'invalid GPS');
   for (const field of Object.keys(point)) {
     const missing = { ...point };
@@ -170,7 +237,7 @@ try {
   await a.stop();
   await a.start();
   assert.deepEqual(await a.invoke('GetState'), expected, 'reconnect snapshot');
-  console.log('PASS: Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
+  console.log('PASS: road routing geometry, shortest search limit, cancellation/retry, Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
 } finally {
   await Promise.all(connections.map(connection => connection.stop()));
 }

@@ -1,21 +1,22 @@
 history.replaceState(null, '', location.pathname);
 const $ = id => document.getElementById(id);
 let dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-try { const saved = localStorage.getItem('gps-theme'); if (saved) dark = saved === 'dark'; } catch {}
+try { const saved = localStorage.getItem('gps-theme'); if (saved) dark = saved === 'dark'; } catch { }
 function applyTheme() {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   $('theme').textContent = dark ? 'Chế độ sáng' : 'Chế độ tối'; $('theme').setAttribute('aria-pressed', String(dark));
 }
-$('theme').onclick = () => { dark = !dark; applyTheme(); try { localStorage.setItem('gps-theme', dark ? 'dark' : 'light'); } catch {} };
+$('theme').onclick = () => { dark = !dark; applyTheme(); try { localStorage.setItem('gps-theme', dark ? 'dark' : 'light'); } catch { } };
 applyTheme();
 const map = L.map('map').setView([10.7769, 106.7009], 13);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19 }).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Routing: <a href="https://valhalla.github.io/valhalla/">Valhalla</a> / <a href="https://www.fossgis.de/">FOSSGIS</a>', maxZoom: 19 }).addTo(map);
 const trail = L.polyline([], { color: '#17695e', weight: 3 }).addTo(map);
-const segment = L.polyline([], { color: '#647c86', weight: 2, dashArray: '7 7' }).addTo(map);
+const roadRoute = L.polyline([], { color: '#c53c65', weight: 5, opacity: .9 }).addTo(map);
 const connection = new signalR.HubConnectionBuilder().withUrl('/hubs/tracking').withAutomaticReconnect().build();
 let latest, marker, circle, startMarker, endMarker, startPoint, endPoint, selecting;
 let routeSequence = -1, watchId, generation = 0, activeRequest, lastGpsSent = 0;
 let connecting = false, syncing = true, buffered = [], routeSaving = false, routePending, deferredRoute;
+let directionsRequest, directionsKey;
 function error(message = '') { $('error').textContent = message; $('error').hidden = !message; }
 function state(message, live = false) { $('connection').textContent = message; $('connection').classList.toggle('live', live); }
 function coordinates(point) { return point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : 'Chưa chọn'; }
@@ -48,7 +49,50 @@ function drawRoute() {
     if (endpoint === 'start') startMarker = pin; else endMarker = pin;
     $(`${endpoint}-coordinates`).value = coordinates(point);
   }
-  segment.setLatLngs(startPoint && endPoint ? [[startPoint.latitude, startPoint.longitude], [endPoint.latitude, endPoint.longitude]] : []);
+  findDirections();
+}
+async function findDirections(force = false) {
+  const enabled = $('routing').checked, key = JSON.stringify([enabled, startPoint, endPoint]);
+  $('routing').disabled = !startPoint || !endPoint;
+  if (!force && key === directionsKey) return;
+  directionsKey = key; directionsRequest?.abort(); directionsRequest = undefined; roadRoute.setLatLngs([]);
+  $('directions-retry').hidden = true; $('directions-status').hidden = !enabled;
+  if (!enabled) return;
+  if (!startPoint || !endPoint) { $('directions-status').textContent = 'Chọn đủ điểm đầu và điểm cuối.'; return; }
+  const request = new AbortController(); directionsRequest = request;
+  let timeout, message = 'Không tìm được tuyến ô tô. Chọn điểm gần đường hoặc thử lại.';
+  $('directions-status').textContent = 'Đang tìm đường ô tô…';
+  try {
+    // FOSSGIS allows one request per second; debounce endpoint edits and shared updates.
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    if (directionsRequest !== request) return;
+    timeout = setTimeout(() => request.abort(), 15000);
+    const query = {
+      locations: [startPoint, endPoint].map(point => ({ lat: point.latitude, lon: point.longitude, search_cutoff: 200 })),
+      costing: 'auto', costing_options: { auto: { shortest: true, disable_hierarchy_pruning: true } },
+      format: 'osrm', shape_format: 'geojson'
+    };
+    // shortcut: public Valhalla caps exact shortest searches; use a private server for longer routes.
+    const response = await fetch(`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(query))}`, { signal: request.signal });
+    const result = await response.json();
+    if (directionsRequest !== request) return;
+    if (result.warnings?.some(warning => warning.code === 205)) {
+      message = 'Tuyến vượt giới hạn tìm đường ngắn nhất của dịch vụ. Chọn hai điểm gần hơn.';
+      throw new Error('Shortest search limit');
+    }
+    const route = result.routes?.[0], points = route?.geometry?.coordinates;
+    if (!response.ok || result.code !== 'Ok' || route?.geometry?.type !== 'LineString' ||
+      !Array.isArray(points) || points.length < 2 || !Number.isFinite(route.distance) || route.distance < 0 ||
+      !points.every(point => Array.isArray(point) && point.length >= 2 && Number.isFinite(point[0]) && Math.abs(point[0]) <= 180 && Number.isFinite(point[1]) && Math.abs(point[1]) <= 90))
+      throw new Error('Invalid road route');
+    const latlngs = points.map(([longitude, latitude]) => [latitude, longitude]);
+    roadRoute.setLatLngs(latlngs); map.fitBounds(latlngs, { padding: [24, 24], maxZoom: 16 });
+    $('directions-status').textContent = `${(route.distance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} km · Ô tô`;
+  } catch {
+    if (directionsRequest !== request) return;
+    $('directions-status').textContent = request.signal.aborted ? 'Tìm đường quá lâu. Thử lại.' : message;
+    $('directions-retry').hidden = false;
+  } finally { clearTimeout(timeout); if (directionsRequest === request) directionsRequest = undefined; }
 }
 function applyRoute(route) {
   if (routeSaving || routePending) { if (!deferredRoute || route.sequence > deferredRoute.sequence) deferredRoute = route; return; }
@@ -159,4 +203,5 @@ map.on('click', event => {
 });
 for (const endpoint of ['start', 'end']) $(`${endpoint}-link-form`).onsubmit = event => { event.preventDefault(); useMapLink(endpoint); };
 $('choose-start').onclick = () => choose('start'); $('choose-end').onclick = () => choose('end'); $('gps').onclick = startGps; $('stop').onclick = stop; $('retry').onclick = connect;
+$('routing').onchange = () => findDirections(); $('directions-retry').onclick = () => findDirections(true);
 setInterval(updateAge, 1000); window.addEventListener('pagehide', stop); connect();
