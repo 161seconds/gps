@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin">
-<title>GPS realtime</title><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=13">
+<title>GPS realtime</title><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=15">
 <script defer src="/vendor/leaflet.js"></script><script defer src="/vendor/signalr.min.js"></script><script defer src="/app.js?v=12"></script>
 </head>
 <body>
@@ -27,7 +27,7 @@
         <label class="sr-only" for="end-coordinates">Tọa độ điểm đến</label><input id="end-coordinates" class="coordinate-readout" readonly value="Chưa chọn">
       </div>
       <p id="route-status" class="status-text" role="status">Chưa có hai điểm.</p>
-      <label class="route-mode"><input id="routing" type="checkbox" disabled>Tìm đường ô tô</label>
+      <label class="route-mode routing-toggle" for="routing"><svg class="icon" aria-hidden="true"><use href="/icons.svg#route"></use></svg><span>Tìm đường ô tô</span><input id="routing" type="checkbox" role="switch" disabled></label>
       <p id="directions-status" class="status-text" role="status" hidden></p><button id="directions-retry" class="secondary" type="button" hidden>Thử tìm lại</button>
       <fieldset id="route-options" class="route-options" aria-label="Chọn tuyến đường" hidden>
         <label class="route-choice"><input id="route-primary" type="radio" name="road-route" checked><span>Tuyến 1</span><b id="primary-distance"></b></label>
