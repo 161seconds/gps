@@ -90,8 +90,15 @@ dd{margin:6px 0 0;font-size:12px;line-height:1.5;font-weight:600;font-variant-nu
 .leaflet-bottom.leaflet-right{max-width:100%}
 .leaflet-bottom .leaflet-control-zoom{margin:0 18px 18px 0!important}
 html[data-theme="dark"]{color-scheme:dark;--surface:#1c2025;--subtle:#242930;--text:#eef0f3;--muted:#9ca4ad;--line:#323840;--accent:#62c39e;--accent-soft:#253d33;--input:#252a30;--shadow:0 2px 12px #0002;color:var(--text);background:var(--surface)}
+html[data-theme="dark"] #map{background:#20252a}
+/* shortcut: filter existing tiles; use native dark tiles if geographic colors must stay exact. */
+html[data-theme="dark"] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}
+html[data-theme="dark"] .leaflet-bar a{background:var(--surface);color:var(--text)!important;border-bottom-color:var(--line)}
+html[data-theme="dark"] .leaflet-bar a:hover{background:var(--subtle)}
+html[data-theme="dark"] .leaflet-control-attribution{background:var(--surface)!important;color:var(--muted)!important}
+html[data-theme="dark"] .leaflet-control-attribution a{color:var(--accent)!important}
 html[data-theme="dark"] .brand-mark{color:#14241d}
-html[data-theme="dark"] button:not(.secondary):not(.icon-button){color:#14241d}
+html[data-theme="dark"] #gps{color:#14241d}
 html[data-theme="dark"] .map-link button{color:var(--accent)}
 html[data-theme="dark"] .badge.live{color:#74d5ad}
 html[data-theme="dark"] .badge.stale{color:#e3b266}
@@ -119,5 +126,5 @@ html[data-theme="dark"] .endpoint-marker span{color:#12271e}html[data-theme="dar
 @media(max-width:350px){
 .brand small{display:none}.header-actions{gap:8px}.topbar .badge{font-size:10px}.map-title .icon{display:none}.map-caption{bottom:56px}.map-heading{gap:7px}.map-title{padding:8px}.map-heading .badge{padding:8px}.control-section{padding:20px}
 }
-@media(max-height:540px) and (max-width:640px){.map-panel{height:40svh;min-height:180px}}
+@media(max-height:540px) and (max-width:640px){.map-panel{height:40svh;min-height:180px}.map-caption{display:none}}
 @media(prefers-reduced-motion:reduce){button{transition:none}}

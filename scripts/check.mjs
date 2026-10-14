@@ -54,7 +54,7 @@ function frontend(saved = null, systemDark = true) {
     setLatLng(value) { this.points = value; return this; }, setRadius() { return this; },
     setLatLngs(value) { this.points = value; return this; }, getLatLngs() { return this.points; }
   });
-  const map = { on(event, handler) { this[event] = handler; return this; }, setView(points) { this.center = points; return this; }, panTo(points) { this.center = points; return this; }, fitBounds(points) { this.bounds = points; return this; }, removeLayer(value) { value.removed = true; } };
+  const map = { on(event, handler) { this[event] = handler; return this; }, setView(points) { this.center = points; return this; }, panTo(points) { this.center = points; return this; }, getSize() { return { y: this.height || 400 }; }, fitBounds(points, options) { this.bounds = points; this.padding = options; return this; }, removeLayer(value) { value.removed = true; } };
   const hub = { state: 'Disconnected', start: () => new Promise(() => { }), on() { }, onreconnecting() { }, onreconnected() { }, onclose() { }, invoke: async () => ({ start: null, end: null, location: null, routeSequence: 0 }) };
   const context = createContext({
     document, history: { replaceState() { } }, location: { pathname: '/' },
@@ -82,6 +82,11 @@ async function checkFrontend() {
   assert.equal(ui.storage.get('gps-theme'), 'light');
   assert.equal(frontend(ui.storage.get('gps-theme')).document.documentElement.dataset.theme, 'light', 'restored theme');
   assert.equal(frontend(null, false).document.documentElement.dataset.theme, 'light', 'system light theme');
+  for (const [height, bottom] of [[400, 144], [180, 48]]) {
+    ui.map.height = height;
+    runInContext('fitRoute([[10, 106], [11, 107]])', ui.context);
+    assert.deepEqual(JSON.parse(JSON.stringify(ui.map.padding)), { paddingTopLeft: [24, 64], paddingBottomRight: [24, bottom], maxZoom: 16 }, 'route framing reserves overlays without exhausting short maps');
+  }
   const point = { latitude: 10, longitude: 106, accuracy: 5, capturedAt: new Date().toISOString(), receivedAt: new Date().toISOString(), sequence: 1 };
   ui.context.point = point;
   runInContext('applyLocation(point)', ui.context);

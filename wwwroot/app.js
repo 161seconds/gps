@@ -10,6 +10,7 @@ $('theme').onclick = () => { dark = !dark; applyTheme(); try { localStorage.setI
 applyTheme();
 const map = L.map('map').setView([10.7769, 106.7009], 13);
 map.zoomControl?.setPosition('bottomright');
+function fitRoute(points) { map.fitBounds(points, { paddingTopLeft: [24, 64], paddingBottomRight: [24, map.getSize().y < 240 ? 48 : 144], maxZoom: 16 }); }
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Routing: <a href="https://valhalla.github.io/valhalla/">Valhalla</a> / <a href="https://www.fossgis.de/">FOSSGIS</a>', maxZoom: 19 }).addTo(map);
 const trail = L.polyline([], { color: '#17695e', weight: 3 }).addTo(map);
 const roadRoute = L.polyline([], { color: '#c53c65', weight: 5, opacity: .9 }).addTo(map);
@@ -114,7 +115,7 @@ async function findDirections(force = false) {
     $('route-options').hidden = false; $('secondary-option').hidden = routes.length < 2;
     selectRoadRoute(0);
     if (!$('follow-gps').checked || !latest || Date.now() - Date.parse(latest.receivedAt) > 15000)
-      map.fitBounds(routes.flatMap(route => route.geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude])), { padding: [24, 24], maxZoom: 16 });
+      fitRoute(routes.flatMap(route => route.geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude])));
   } catch {
     if (directionsRequest !== request) return;
     $('directions-status').textContent = request.signal.aborted ? 'Tìm đường quá lâu. Thử lại.' : message;
@@ -218,7 +219,7 @@ async function useMapLink(endpoint) {
     if (!response.ok) { message = point.error || message; throw new Error(); }
     if (JSON.stringify(endpoint === 'start' ? startPoint : endPoint) !== previous) { error('Điểm đã thay đổi khi đọc link. Nhấn Dùng link lần nữa nếu muốn thay thế.'); return; }
     setEndpoint(endpoint, point);
-    map.fitBounds([startPoint || point, endPoint || point].map(p => [p.latitude, p.longitude]), { padding: [24, 24], maxZoom: 16 });
+    fitRoute([startPoint || point, endPoint || point].map(p => [p.latitude, p.longitude]));
   } catch { error(request.signal.aborted ? 'Đọc link quá lâu. Thử lại hoặc chọn điểm trên bản đồ.' : message); }
   finally { clearTimeout(timeout); button.disabled = input.disabled = false; button.setAttribute('aria-busy', 'false'); button.title = 'Dùng link'; }
 }
