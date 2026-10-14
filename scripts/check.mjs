@@ -35,21 +35,31 @@ async function publish(path, body, event) {
 
 const app = readFileSync(new URL('../wwwroot/app.js', import.meta.url), 'utf8');
 const iconMarkup = '<svg><use href="/icons.svg#sun"></use></svg>';
-function frontend(saved = null, systemDark = true) {
+function frontend(saved = null, systemDark = true, savedLanguage = null) {
   const elements = new Map(), storage = new Map(saved ? [['gps-theme', saved]] : []);
+  if (savedLanguage) storage.set('gps-language', savedLanguage);
   const document = {
+    querySelectorAll(selector) {
+      const nodes = [...elements.values(), ...Array.from(elements.values(), element => element.button)];
+      if (selector === '[data-i18n]') return nodes.filter(element => Object.hasOwn(element.dataset, 'i18n'));
+      return selector.startsWith('[data-i18n-') ? nodes.filter(element => Object.hasOwn(element, selector.slice(1, -1))) : [];
+    },
     documentElement: { dataset: {} }, getElementById(id) {
       if (!elements.has(id)) elements.set(id, {
-        value: '', checked: id === 'follow-gps', innerHTML: iconMarkup,
+        value: '', dataset: {}, checked: id === 'follow-gps', innerHTML: iconMarkup,
         set textContent(value) { this.text = value; this.innerHTML = ''; }, get textContent() { return this.text || ''; },
-        button: { innerHTML: iconMarkup, set textContent(value) { this.text = value; this.innerHTML = ''; }, setAttribute(name, value) { this[name] = value; } },
-        querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, classList: { toggle() { } }
+        button: { dataset: {}, innerHTML: iconMarkup, set textContent(value) { this.text = value; this.innerHTML = ''; }, setAttribute(name, value) { this[name] = value; }, getAttribute(name) { return this[name] ?? null; } },
+        querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, getAttribute(name) { return this[name] ?? null; }, classList: { toggle() { } }
       });
       return elements.get(id);
     }
   };
+  for (const [id, message] of [['journey-title', 'Hành trình'], ['sharing', 'Chưa gửi vị trí.'], ['coordinates', 'Chưa có vị trí'], ['freshness', 'Chưa có GPS']]) {
+    const element = document.getElementById(id); element.dataset.i18n = ''; element.textContent = message;
+  }
+  const link = document.getElementById('start-link'); link.setAttribute('data-i18n-placeholder', ''); link.setAttribute('placeholder', 'Link Google Maps');
   const layer = (points = []) => ({
-    points, addTo() { return this; }, bindTooltip() { return this; },
+    points, addTo() { return this; }, bindTooltip(value) { this.tooltip = value; return this; }, setTooltipContent(value) { this.tooltip = value; return this; },
     on(event, handler) { this[event] = handler; return this; }, setStyle(style) { this.style = style; return this; }, bringToFront() { this.front = true; return this; },
     setLatLng(value) { this.points = value; return this; }, setRadius() { return this; },
     setLatLngs(value) { this.points = value; return this; }, getLatLngs() { return this.points; }
@@ -68,6 +78,38 @@ function frontend(saved = null, systemDark = true) {
 }
 async function checkFrontend() {
   const ui = frontend();
+  const changeLanguage = (view, value) => { const select = view.document.getElementById('language'); select.value = value; select.onchange(); };
+  const localized = frontend(null, true, 'en');
+  assert.equal(ui.document.documentElement.lang, 'vi', 'Vietnamese is the default');
+  assert.equal(localized.document.documentElement.lang, 'en', 'saved language');
+  assert.equal(localized.document.getElementById('journey-title').textContent, 'Journey');
+  assert.equal(localized.document.getElementById('start-link').placeholder, 'Google Maps link');
+  assert.equal(localized.theme.title, 'Light mode');
+  runInContext("state('Mất kết nối'); setText('sharing', 'Đang gửi GPS từ điện thoại.'); error('Chỉ nhận link HTTPS Google Maps hợp lệ.'); watchId = 42; applyLocation({ latitude: 10, longitude: 106, accuracy: 5, sequence: 1, capturedAt: new Date().toISOString(), receivedAt: new Date().toISOString() });", localized.context);
+  assert.equal(localized.document.getElementById('connection').textContent, 'Disconnected');
+  assert.equal(localized.document.getElementById('error').textContent, 'Only valid HTTPS Google Maps links are accepted.');
+  assert.match(localized.document.getElementById('received').textContent, /seconds ago/);
+  assert.equal(runInContext('marker.tooltip', localized.context), 'Current GPS');
+  const localizedCenter = JSON.stringify(localized.map.center), localizedTrail = runInContext('trail.getLatLngs().length', localized.context);
+  changeLanguage(localized, 'vi');
+  assert.equal(localized.document.getElementById('journey-title').textContent, 'Hành trình');
+  assert.equal(localized.document.getElementById('start-link').placeholder, 'Link Google Maps');
+  assert.equal(localized.document.getElementById('sharing').textContent, 'Đang gửi GPS từ điện thoại.');
+  assert.equal(runInContext('marker.tooltip', localized.context), 'GPS hiện tại');
+  assert.equal(runInContext('watchId', localized.context), 42, 'language does not stop GPS');
+  assert.equal(runInContext('trail.getLatLngs().length', localized.context), localizedTrail, 'language preserves GPS trail');
+  assert.equal(JSON.stringify(localized.map.center), localizedCenter, 'language preserves map center');
+  changeLanguage(localized, 'en');
+  assert.equal(localized.storage.get('gps-language'), 'en');
+  assert.equal(frontend(null, true, localized.storage.get('gps-language')).document.documentElement.lang, 'en', 'language persists across reloads');
+  changeLanguage(localized, 'fr');
+  assert.equal(localized.document.documentElement.lang, 'en', 'unsupported selection is ignored');
+  assert.equal(frontend(null, true, 'fr').document.documentElement.lang, 'vi', 'unsupported stored language falls back');
+  localized.context.localStorage.setItem = () => { throw new Error('storage blocked'); };
+  changeLanguage(localized, 'vi');
+  assert.equal(localized.document.documentElement.lang, 'vi', 'language works with blocked storage');
+  assert.equal(runInContext("language = 'en'; t('constructor')", localized.context), 'constructor', 'unknown messages do not read object prototypes');
+  assert.equal(runInContext("t('{constructor}')", localized.context), '{constructor}', 'unknown placeholders remain intact');
   assert.equal(ui.document.documentElement.dataset.theme, 'dark', 'system theme');
   assert.equal(ui.theme['aria-pressed'], 'true');
   assert.equal(ui.theme.innerHTML, iconMarkup, 'initial theme keeps icon');
@@ -145,11 +187,14 @@ async function checkFrontend() {
   let finishResolve;
   imported.context.fetch = () => new Promise(resolve => { finishResolve = resolve; });
   const resolving = runInContext("useMapLink('start')", imported.context);
+  changeLanguage(imported, 'en');
+  assert.equal(imported.document.getElementById('start-link-form').button.title, 'Reading link', 'pending import title follows language');
   assert.equal(imported.document.getElementById('start-link-form').button.innerHTML, iconMarkup, 'pending import keeps icon');
   assert.equal(imported.document.getElementById('start-link-form').button['aria-busy'], 'true', 'pending import exposes busy state');
   runInContext('startPoint = { latitude: 21, longitude: 105 }; drawRoute();', imported.context);
   finishResolve({ ok: true, json: async () => endpoints[0] });
   await resolving;
+  assert.equal(imported.document.getElementById('start-link-form').button.title, 'Use link');
   assert.equal(runInContext('startPoint.latitude', imported.context), 21, 'late link does not overwrite newer point');
   assert.equal(imported.document.getElementById('start-link-form').button.disabled, false, 'resolve releases button');
   assert.equal(imported.document.getElementById('start-link-form').button.innerHTML, iconMarkup, 'late import keeps icon');
@@ -234,6 +279,17 @@ async function checkFrontend() {
   assert.equal(directions.document.getElementById('route-options').hidden, false);
   assert.equal(directions.document.getElementById('secondary-option').hidden, false);
   assert.equal(directions.document.getElementById('route-primary').checked, true);
+  const requestCount = requests.length, routeBounds = JSON.stringify(directions.map.bounds);
+  directions.document.getElementById('route-secondary').onchange();
+  changeLanguage(directions, 'en');
+  assert.equal(runInContext('selectedRoute', directions.context), 1, 'language preserves selected alternative');
+  assert.equal(directions.document.getElementById('directions-status').textContent, '1.5 km · Route 2');
+  assert.equal(directions.document.getElementById('secondary-distance').textContent, '1.5 km');
+  assert.equal(requests.length, requestCount, 'language does not refetch routing');
+  assert.equal(JSON.stringify(directions.map.bounds), routeBounds, 'language does not reframe route');
+  changeLanguage(directions, 'vi');
+  assert.equal(directions.document.getElementById('secondary-distance').textContent, '1,5 km');
+  runInContext('selectRoadRoute(0)', directions.context);
   const primaryColor = runInContext('roadRoute.style.color', directions.context);
   const secondaryColor = runInContext('alternativeRoute.style.color', directions.context);
   assert.notEqual(primaryColor, secondaryColor, 'selected route visibly differs');
@@ -330,7 +386,7 @@ try {
   await a.stop();
   await a.start();
   assert.deepEqual(await a.invoke('GetState'), expected, 'reconnect snapshot');
-  console.log('PASS: road routing geometry, long routes, cancellation/retry, Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
+  console.log('PASS: English/Vietnamese language, road routing geometry, long routes, cancellation/retry, Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
 } finally {
   await Promise.all(connections.map(connection => connection.stop()));
 }

@@ -22,6 +22,7 @@ button.icon-button:hover:not(:disabled){background:var(--subtle);color:var(--tex
 .brand-group{display:flex;align-items:center;gap:16px}
 .workspace-name{font-size:12px;color:var(--muted);border-left:1px solid var(--line);padding-left:18px;margin-left:6px}
 .header-actions{display:flex;align-items:center;gap:14px}
+#language{width:104px;height:44px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;cursor:pointer;flex-shrink:0}
 .badge{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:550;line-height:1.4;color:var(--muted);white-space:nowrap}
 .badge:before{content:"";width:6px;height:6px;border-radius:50%;background:#b6bbc2;flex-shrink:0}
 .badge.live{color:#157451}.badge.live:before{background:#22a474}
@@ -119,7 +120,7 @@ html[data-theme="dark"] .endpoint-marker span{color:#12271e}html[data-theme="dar
 .workspace{grid-template-columns:320px minmax(0,1fr)}.topbar{padding:0 20px}.workspace-name{display:none}.control-section{padding:21px}.session-note{padding:14px 21px}.map-heading{top:16px;left:16px;right:16px}.map-caption{left:16px}
 }
 @media(max-width:640px){
-.topbar{height:60px;padding:0 16px}.brand{font-size:20px;gap:9px}.brand-mark{width:30px;height:30px}.brand small{font-size:10px;margin-left:3px}.header-actions{gap:10px}.topbar .icon-button{width:44px;height:44px}
+.topbar{height:60px;padding:0 12px}.brand{font-size:18px;gap:7px}.brand-mark{width:30px;height:30px}.brand small{display:none}.header-actions{gap:6px}.topbar .icon-button{width:44px;height:44px}.topbar .badge{max-width:76px;white-space:normal;font-size:10px}#language{width:92px}
 .workspace{display:flex;flex-direction:column;height:calc(100dvh - 60px)}
 .map-panel{order:-1;height:43svh;min-height:240px;max-height:400px;flex:none;border-bottom:1px solid var(--line)}
 .controls{flex:1;border:0}
@@ -132,7 +133,7 @@ html[data-theme="dark"] .endpoint-marker span{color:#12271e}html[data-theme="dar
 .session-note{padding:16px 22px}.map-heading .badge:before{width:5px;height:5px}
 }
 @media(max-width:350px){
-.brand small{display:none}.header-actions{gap:8px}.topbar .badge{font-size:10px}.map-title .icon{display:none}.map-caption{bottom:56px}.map-heading{gap:7px}.map-title{padding:8px}.map-heading .badge{padding:8px}.control-section{padding:20px}
+.map-title .icon{display:none}.map-caption{bottom:56px}.map-heading{gap:7px}.map-title{padding:8px}.map-heading .badge{padding:8px}.control-section{padding:20px}
 }
 @media(max-height:540px) and (max-width:640px){.map-panel{height:40svh;min-height:180px}.map-caption{display:none}}
 @media(prefers-reduced-motion:reduce){button{transition:none}}
