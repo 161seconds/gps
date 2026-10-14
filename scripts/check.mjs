@@ -34,11 +34,17 @@ async function publish(path, body, event) {
 }
 
 const app = readFileSync(new URL('../wwwroot/app.js', import.meta.url), 'utf8');
+const iconMarkup = '<svg><use href="/icons.svg#sun"></use></svg>';
 function frontend(saved = null, systemDark = true) {
   const elements = new Map(), storage = new Map(saved ? [['gps-theme', saved]] : []);
   const document = {
     documentElement: { dataset: {} }, getElementById(id) {
-      if (!elements.has(id)) elements.set(id, { value: '', checked: id === 'follow-gps', button: {}, querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, classList: { toggle() { } } });
+      if (!elements.has(id)) elements.set(id, {
+        value: '', checked: id === 'follow-gps', innerHTML: iconMarkup,
+        set textContent(value) { this.text = value; this.innerHTML = ''; }, get textContent() { return this.text || ''; },
+        button: { innerHTML: iconMarkup, set textContent(value) { this.text = value; this.innerHTML = ''; }, setAttribute(name, value) { this[name] = value; } },
+        querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, classList: { toggle() { } }
+      });
       return elements.get(id);
     }
   };
@@ -64,9 +70,15 @@ async function checkFrontend() {
   const ui = frontend();
   assert.equal(ui.document.documentElement.dataset.theme, 'dark', 'system theme');
   assert.equal(ui.theme['aria-pressed'], 'true');
+  assert.equal(ui.theme.innerHTML, iconMarkup, 'initial theme keeps icon');
+  assert.equal(ui.theme.title, 'Chế độ sáng');
+  assert.equal(ui.theme['aria-label'], ui.theme.title);
   ui.theme.onclick();
   assert.equal(ui.document.documentElement.dataset.theme, 'light');
   assert.equal(ui.theme['aria-pressed'], 'false');
+  assert.equal(ui.theme.innerHTML, iconMarkup, 'theme toggle keeps icon');
+  assert.equal(ui.theme.title, 'Chế độ tối');
+  assert.equal(ui.theme['aria-label'], ui.theme.title);
   assert.equal(ui.storage.get('gps-theme'), 'light');
   assert.equal(frontend(ui.storage.get('gps-theme')).document.documentElement.dataset.theme, 'light', 'restored theme');
   assert.equal(frontend(null, false).document.documentElement.dataset.theme, 'light', 'system light theme');
@@ -110,6 +122,9 @@ async function checkFrontend() {
     imported.document.getElementById(`${endpoint}-link`).value = `https://maps.app.goo.gl/${endpoint}`;
     await runInContext(`useMapLink('${endpoint}')`, imported.context);
     await new Promise(resolve => setImmediate(resolve));
+    const button = imported.document.getElementById(`${endpoint}-link-form`).button;
+    assert.equal(button.innerHTML, iconMarkup, 'successful import keeps icon');
+    assert.equal(button['aria-busy'], 'false', 'successful import clears busy state');
   }
   assert.deepEqual(routes, [{ start: endpoints[0], end: endpoints[1] }], 'imported A/B autosave');
   assert.equal(runInContext('startMarker.points[0]', imported.context), endpoints[0].latitude);
@@ -118,16 +133,22 @@ async function checkFrontend() {
   const before = runInContext('JSON.stringify([startPoint, endPoint])', imported.context);
   imported.context.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: 'Invalid link' }) });
   await runInContext("useMapLink('start')", imported.context);
+  assert.equal(imported.document.getElementById('start-link-form').button.innerHTML, iconMarkup, 'failed import keeps icon');
+  assert.equal(imported.document.getElementById('start-link-form').button['aria-busy'], 'false', 'failed import clears busy state');
   assert.equal(runInContext('JSON.stringify([startPoint, endPoint])', imported.context), before, 'failed import preserves endpoints');
   assert.equal(routes.length, 1, 'failed import does not save route');
   let finishResolve;
   imported.context.fetch = () => new Promise(resolve => { finishResolve = resolve; });
   const resolving = runInContext("useMapLink('start')", imported.context);
+  assert.equal(imported.document.getElementById('start-link-form').button.innerHTML, iconMarkup, 'pending import keeps icon');
+  assert.equal(imported.document.getElementById('start-link-form').button['aria-busy'], 'true', 'pending import exposes busy state');
   runInContext('startPoint = { latitude: 21, longitude: 105 }; drawRoute();', imported.context);
   finishResolve({ ok: true, json: async () => endpoints[0] });
   await resolving;
   assert.equal(runInContext('startPoint.latitude', imported.context), 21, 'late link does not overwrite newer point');
   assert.equal(imported.document.getElementById('start-link-form').button.disabled, false, 'resolve releases button');
+  assert.equal(imported.document.getElementById('start-link-form').button.innerHTML, iconMarkup, 'late import keeps icon');
+  assert.equal(imported.document.getElementById('start-link-form').button['aria-busy'], 'false', 'late import clears busy state');
   const directions = frontend(), requests = [], routing = directions.document.getElementById('routing');
   const road = () => JSON.parse(runInContext('JSON.stringify(roadRoute.getLatLngs())', directions.context));
   const flush = () => new Promise(resolve => setTimeout(resolve, 5));
@@ -248,7 +269,7 @@ async function checkFrontend() {
 
 try {
   await checkFrontend();
-  for (const path of ['/api/health', '/', '/app.js', '/style.css', '/vendor/leaflet.js', '/vendor/signalr.min.js'])
+  for (const path of ['/api/health', '/', '/app.js', '/style.css', '/icons.svg', '/vendor/leaflet.js', '/vendor/signalr.min.js'])
     assert.equal((await request(path)).status, 200, path);
   for (const url of ['https://www.google.com/maps/place/Test/@1,2,17z/data=!3d10.7769!4d106.7009',
     'https://www.google.com/maps/place/Test/@1,2,17z/data=!3d10.7769!4d106.7009?entry=ttu',

@@ -4,11 +4,12 @@ let dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 try { const saved = localStorage.getItem('gps-theme'); if (saved) dark = saved === 'dark'; } catch { }
 function applyTheme() {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  $('theme').textContent = dark ? 'Chế độ sáng' : 'Chế độ tối'; $('theme').setAttribute('aria-pressed', String(dark));
+  $('theme').title = dark ? 'Chế độ sáng' : 'Chế độ tối'; $('theme').setAttribute('aria-label', $('theme').title); $('theme').setAttribute('aria-pressed', String(dark));
 }
 $('theme').onclick = () => { dark = !dark; applyTheme(); try { localStorage.setItem('gps-theme', dark ? 'dark' : 'light'); } catch { } };
 applyTheme();
 const map = L.map('map').setView([10.7769, 106.7009], 13);
+map.zoomControl?.setPosition('bottomright');
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Routing: <a href="https://valhalla.github.io/valhalla/">Valhalla</a> / <a href="https://www.fossgis.de/">FOSSGIS</a>', maxZoom: 19 }).addTo(map);
 const trail = L.polyline([], { color: '#17695e', weight: 3 }).addTo(map);
 const roadRoute = L.polyline([], { color: '#c53c65', weight: 5, opacity: .9 }).addTo(map);
@@ -209,7 +210,7 @@ async function useMapLink(endpoint) {
   if (button.disabled) return;
   const previous = JSON.stringify(endpoint === 'start' ? startPoint : endPoint);
   let message = 'Không đọc được link Google Maps. Kiểm tra mạng hoặc chọn điểm trên bản đồ.';
-  button.disabled = input.disabled = true; button.textContent = 'Đang đọc…'; error();
+  button.disabled = input.disabled = true; button.setAttribute('aria-busy', 'true'); button.title = 'Đang đọc link'; error();
   const request = new AbortController(), timeout = setTimeout(() => request.abort(), 12000);
   try {
     const response = await fetch('/api/maps/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: input.value.trim() }), signal: request.signal });
@@ -219,7 +220,7 @@ async function useMapLink(endpoint) {
     setEndpoint(endpoint, point);
     map.fitBounds([startPoint || point, endPoint || point].map(p => [p.latitude, p.longitude]), { padding: [24, 24], maxZoom: 16 });
   } catch { error(request.signal.aborted ? 'Đọc link quá lâu. Thử lại hoặc chọn điểm trên bản đồ.' : message); }
-  finally { clearTimeout(timeout); button.disabled = input.disabled = false; button.textContent = 'Dùng link'; }
+  finally { clearTimeout(timeout); button.disabled = input.disabled = false; button.setAttribute('aria-busy', 'false'); button.title = 'Dùng link'; }
 }
 map.on('click', event => {
   if (!selecting) return;

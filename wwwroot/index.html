@@ -1,95 +1,55 @@
 <!doctype html>
 <html lang="vi">
-
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
-    <title>GPS realtime</title>
-    <link rel="stylesheet" href="/vendor/leaflet.css">
-    <link rel="stylesheet" href="/style.css?v=10">
-    <script defer src="/vendor/leaflet.js"></script>
-    <script defer src="/vendor/signalr.min.js"></script>
-    <script defer src="/app.js?v=11"></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin">
+<title>GPS realtime</title><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=12">
+<script defer src="/vendor/leaflet.js"></script><script defer src="/vendor/signalr.min.js"></script><script defer src="/app.js?v=12"></script>
 </head>
-
 <body>
-    <header>
-        <div><a href="/">GPS <small>realtime</small></a>
-            <div class="header-actions"><button id="theme" class="secondary" aria-pressed="false">Chế độ
-                    tối</button><span id="connection" class="badge" role="status">Đang kết nối</span></div>
-        </div>
-    </header>
-    <main>
-        <div class="heading">
-            <p class="eyebrow">THỬ GPS TRỰC TIẾP</p>
-            <h1>Mỗi bước di chuyển, một vị trí mới.</h1>
-            <p>Mở cùng link trên điện thoại và máy tính để xem GPS cập nhật.</p>
-        </div>
-        <div class="workspace">
-            <section class="panel controls" aria-label="Chọn điểm và bật GPS">
-                <h2>Điểm đầu & điểm cuối</h2>
-                <p>Chạm bản đồ hoặc dán link Google Maps. Hai điểm được lưu tự động.</p>
-                <button id="choose-start" class="secondary endpoint" aria-pressed="false"><b>A</b>Chọn điểm đầu</button>
-                <form id="start-link-form" class="map-link"><label for="start-link">Link Google Maps điểm đầu</label>
-                    <div><input id="start-link" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..."
-                            maxlength="1500" autocomplete="off" spellcheck="false" required><button class="secondary"
-                            type="submit">Dùng link</button></div>
-                </form>
-                <label for="start-coordinates">Tọa độ điểm đầu</label><input id="start-coordinates" readonly
-                    value="Chưa chọn">
-                <button id="choose-end" class="secondary endpoint" aria-pressed="false"><b class="end">B</b>Chọn điểm
-                    cuối</button>
-                <form id="end-link-form" class="map-link"><label for="end-link">Link Google Maps điểm cuối</label>
-                    <div><input id="end-link" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..."
-                            maxlength="1500" autocomplete="off" spellcheck="false" required><button class="secondary"
-                            type="submit">Dùng link</button></div>
-                </form>
-                <label for="end-coordinates">Tọa độ điểm cuối</label><input id="end-coordinates" readonly
-                    value="Chưa chọn">
-                <p id="route-status" role="status">Chưa có hai điểm.</p>
-                <label class="route-mode"><input id="routing" type="checkbox" disabled>Tìm đường ô tô</label>
-                <p id="directions-status" role="status" hidden></p><button id="directions-retry" class="secondary"
-                    type="button" hidden>Thử tìm lại</button>
-                <fieldset id="route-options" class="route-options" aria-label="Chọn tuyến đường" hidden>
-                    <label class="route-choice"><input id="route-primary" type="radio" name="road-route" checked><span>Tuyến 1</span><b id="primary-distance"></b></label>
-                    <label id="secondary-option" class="route-choice"><input id="route-secondary" type="radio" name="road-route"><span>Tuyến 2</span><b id="secondary-distance"></b></label>
-                </fieldset>
-                <hr>
-                <h2>GPS của điện thoại</h2>
-                <div class="buttons"><button id="gps">Bật GPS</button><button id="stop" class="secondary"
-                        disabled>Dừng</button></div>
-                <label class="route-mode"><input id="follow-gps" type="checkbox" checked>Theo vị trí GPS</label>
-                <p id="sharing" role="status">Chưa gửi vị trí.</p><button id="retry" class="secondary" hidden>Kết nối
-                    lại</button>
-                <p id="error" role="alert" hidden></p>
-                <aside>Điện thoại cần HTTPS và quyền vị trí. Giữ trang mở; GPS có thể dừng khi khóa màn hình.</aside>
-            </section>
-            <section class="panel map-panel" aria-label="Bản đồ GPS trực tiếp">
-                <div class="map-heading">
-                    <h2>Bản đồ trực tiếp</h2><span id="freshness" class="badge">Chưa có GPS</span>
-                </div>
-                <div id="map" aria-label="Bản đồ điểm đầu, điểm cuối và GPS hiện tại"></div>
-                <div class="map-caption"><span><i></i> GPS hiện tại · Vệt di chuyển</span><span><i
-                            class="route-key"></i> Tuyến đang chọn</span><span><i class="route-key alternative-key"></i> Tuyến còn lại</span></div>
-                <dl>
-                    <div>
-                        <dt>Vị trí hiện tại</dt>
-                        <dd id="coordinates">Chưa có vị trí</dd>
-                    </div>
-                    <div>
-                        <dt>Độ chính xác</dt>
-                        <dd id="accuracy">—</dd>
-                    </div>
-                    <div>
-                        <dt>Cập nhật gần nhất</dt>
-                        <dd id="received">—</dd>
-                    </div>
-                </dl>
-            </section>
-        </div>
-        <footer>Ai có link đều xem và gửi vị trí. <span>Vệt di chuyển chỉ lưu trong tab này.</span></footer>
-    </main>
+<header class="topbar">
+  <div class="brand-group"><a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#navigation"></use></svg></span><span>GPS <small>realtime</small></span></a><span class="workspace-name">Điều phối hành trình</span></div>
+  <div class="header-actions"><span id="connection" class="badge" role="status">Đang kết nối</span><button id="theme" class="icon-button" aria-label="Chế độ tối" title="Chế độ tối" aria-pressed="false"><svg class="icon theme-moon" aria-hidden="true"><use href="/icons.svg#moon"></use></svg><svg class="icon theme-sun" aria-hidden="true"><use href="/icons.svg#sun"></use></svg></button></div>
+</header>
+<main class="workspace">
+  <aside class="controls" aria-label="Điểm đến và GPS">
+    <section class="control-section" aria-labelledby="journey-title">
+      <div class="section-heading"><svg class="icon" aria-hidden="true"><use href="/icons.svg#route"></use></svg><h1 id="journey-title">Hành trình</h1><span class="section-number">01</span></div>
+      <div class="point-block origin">
+        <span class="point-letter" aria-hidden="true">A</span>
+        <div class="point-label"><label for="start-link">Điểm đầu</label><button id="choose-start" class="icon-button" aria-label="Chọn điểm đầu trên bản đồ" title="Chọn điểm đầu trên bản đồ" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#crosshair"></use></svg></button></div>
+        <form id="start-link-form" class="map-link"><div><input id="start-link" type="url" inputmode="url" placeholder="Link Google Maps" maxlength="1500" autocomplete="off" spellcheck="false" required><button type="submit" aria-label="Dùng link điểm đầu" title="Dùng link"><svg class="icon" aria-hidden="true"><use href="/icons.svg#arrow-right"></use></svg></button></div></form>
+        <label class="sr-only" for="start-coordinates">Tọa độ điểm đầu</label><input id="start-coordinates" class="coordinate-readout" readonly value="Chưa chọn">
+      </div>
+      <div class="point-block">
+        <span class="point-letter end" aria-hidden="true">B</span>
+        <div class="point-label"><label for="end-link">Điểm đến</label><button id="choose-end" class="icon-button" aria-label="Chọn điểm đến trên bản đồ" title="Chọn điểm đến trên bản đồ" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#crosshair"></use></svg></button></div>
+        <form id="end-link-form" class="map-link"><div><input id="end-link" type="url" inputmode="url" placeholder="Link Google Maps" maxlength="1500" autocomplete="off" spellcheck="false" required><button type="submit" aria-label="Dùng link điểm đến" title="Dùng link"><svg class="icon" aria-hidden="true"><use href="/icons.svg#arrow-right"></use></svg></button></div></form>
+        <label class="sr-only" for="end-coordinates">Tọa độ điểm đến</label><input id="end-coordinates" class="coordinate-readout" readonly value="Chưa chọn">
+      </div>
+      <p id="route-status" class="status-text" role="status">Chưa có hai điểm.</p>
+      <label class="route-mode"><input id="routing" type="checkbox" disabled>Tìm đường ô tô</label>
+      <p id="directions-status" class="status-text" role="status" hidden></p><button id="directions-retry" class="secondary" type="button" hidden>Thử tìm lại</button>
+      <fieldset id="route-options" class="route-options" aria-label="Chọn tuyến đường" hidden>
+        <label class="route-choice"><input id="route-primary" type="radio" name="road-route" checked><span>Tuyến 1</span><b id="primary-distance"></b></label>
+        <label id="secondary-option" class="route-choice"><input id="route-secondary" type="radio" name="road-route"><span>Tuyến 2</span><b id="secondary-distance"></b></label>
+      </fieldset>
+    </section>
+    <section class="control-section gps-section" aria-labelledby="gps-title">
+      <div class="section-heading"><svg class="icon" aria-hidden="true"><use href="/icons.svg#radio"></use></svg><h2 id="gps-title">Vị trí trực tiếp</h2><span class="section-number">02</span></div>
+      <div class="buttons"><button id="gps"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg>Bật GPS</button><button id="stop" class="secondary" aria-label="Dừng GPS" title="Dừng GPS" disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#square"></use></svg></button></div>
+      <label class="route-mode"><input id="follow-gps" type="checkbox" checked>Theo vị trí GPS</label>
+      <p id="sharing" class="status-text" role="status">Chưa gửi vị trí.</p><button id="retry" class="secondary" hidden>Kết nối lại</button><p id="error" role="alert" hidden></p>
+    </section>
+    <section class="control-section" aria-label="Thông tin vị trí">
+      <dl class="telemetry"><div><dt>Tọa độ hiện tại</dt><dd id="coordinates">Chưa có vị trí</dd></div><div><dt>Độ chính xác</dt><dd id="accuracy">—</dd></div><div><dt>Cập nhật gần nhất</dt><dd id="received">—</dd></div></dl>
+    </section>
+    <footer class="session-note"><span class="session-dot" aria-hidden="true"></span>Phiên dùng chung · Ai có link đều xem và gửi vị trí</footer>
+  </aside>
+  <section class="map-panel" aria-label="Bản đồ hành trình">
+    <div id="map" aria-label="Bản đồ điểm đầu, điểm đến và GPS hiện tại"></div>
+    <div class="map-heading"><div class="map-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#navigation"></use></svg><h2>Bản đồ hành trình</h2></div><span id="freshness" class="badge" role="status">Chưa có GPS</span></div>
+    <div class="map-caption" aria-label="Chú giải bản đồ"><span><i></i> Vị trí GPS</span><span><i class="route-key"></i> Tuyến đang chọn</span><span><i class="route-key alternative-key"></i> Tuyến còn lại</span></div>
+  </section>
+</main>
 </body>
-
 </html>
