@@ -578,3 +578,9 @@ html[data-theme="dark"] .endpoint-marker:not(.end) span {
     border-radius: 0;
     background: #c53c65
 }
+
+.map-caption .alternative-key{background:#718da0}
+.route-options{border:0;margin:10px 0 0;padding:0;min-width:0}
+.route-choice{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;font-size:12px;color:inherit;cursor:pointer;border-bottom:1px solid var(--line)}
+.route-choice input{width:18px;height:18px;flex-shrink:0;margin:0;padding:0;accent-color:#c53c65}
+.route-choice span{flex:1;min-width:0}.route-choice b{font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}

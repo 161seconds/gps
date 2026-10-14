@@ -38,16 +38,17 @@ function frontend(saved = null, systemDark = true) {
   const elements = new Map(), storage = new Map(saved ? [['gps-theme', saved]] : []);
   const document = {
     documentElement: { dataset: {} }, getElementById(id) {
-      if (!elements.has(id)) elements.set(id, { value: '', button: {}, querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, classList: { toggle() { } } });
+      if (!elements.has(id)) elements.set(id, { value: '', checked: id === 'follow-gps', button: {}, querySelector() { return this.button; }, addEventListener() { }, setAttribute(name, value) { this[name] = value; }, classList: { toggle() { } } });
       return elements.get(id);
     }
   };
   const layer = (points = []) => ({
     points, addTo() { return this; }, bindTooltip() { return this; },
+    on(event, handler) { this[event] = handler; return this; }, setStyle(style) { this.style = style; return this; }, bringToFront() { this.front = true; return this; },
     setLatLng(value) { this.points = value; return this; }, setRadius() { return this; },
     setLatLngs(value) { this.points = value; return this; }, getLatLngs() { return this.points; }
   });
-  const map = { on() { }, setView() { return this; }, fitBounds(points) { this.bounds = points; return this; }, removeLayer(value) { value.removed = true; } };
+  const map = { on(event, handler) { this[event] = handler; return this; }, setView(points) { this.center = points; return this; }, panTo(points) { this.center = points; return this; }, fitBounds(points) { this.bounds = points; return this; }, removeLayer(value) { value.removed = true; } };
   const hub = { state: 'Disconnected', start: () => new Promise(() => { }), on() { }, onreconnecting() { }, onreconnected() { }, onclose() { }, invoke: async () => ({ start: null, end: null, location: null, routeSequence: 0 }) };
   const context = createContext({
     document, history: { replaceState() { } }, location: { pathname: '/' },
@@ -72,6 +73,17 @@ async function checkFrontend() {
   const point = { latitude: 10, longitude: 106, accuracy: 5, capturedAt: new Date().toISOString(), receivedAt: new Date().toISOString(), sequence: 1 };
   ui.context.point = point;
   runInContext('applyLocation(point)', ui.context);
+  assert.deepEqual(Array.from(ui.map.center), [point.latitude, point.longitude], 'follow GPS centers first location');
+  const follow = ui.document.getElementById('follow-gps');
+  follow.checked = false; follow.onchange();
+  runInContext('applyLocation({ ...point, latitude: 10.5, sequence: 2 })', ui.context);
+  assert.deepEqual(Array.from(ui.map.center), [point.latitude, point.longitude], 'disabled follow preserves map center');
+  follow.checked = true; follow.onchange();
+  assert.deepEqual(Array.from(ui.map.center), [10.5, point.longitude], 'enabling follow centers latest GPS');
+  runInContext('applyLocation({ ...point, latitude: 10.6, sequence: 3 })', ui.context);
+  assert.deepEqual(Array.from(ui.map.center), [10.6, point.longitude], 'follow tracks later GPS');
+  ui.map.dragstart();
+  assert.equal(follow.checked, false, 'manual map drag disables GPS follow');
   const replacement = { ...point, latitude: 11 };
   ui.hub.invoke = async () => ({ start: null, end: null, location: replacement, routeSequence: 0 });
   await runInContext('sync()', ui.context);
@@ -135,9 +147,10 @@ async function checkFrontend() {
   assert.equal(url.origin + url.pathname, 'https://valhalla1.openstreetmap.de/route');
   assert.deepEqual(query.locations, endpoints.map(point => ({ lat: point.latitude, lon: point.longitude, search_cutoff: 200 })));
   assert.equal(query.costing, 'auto');
-  assert.deepEqual(query.costing_options.auto, { shortest: true, disable_hierarchy_pruning: true });
+  assert.deepEqual(query.costing_options.auto, { shortest: true });
   assert.equal(query.format, 'osrm');
   assert.equal(query.shape_format, 'geojson');
+  assert.equal(query.alternates, 1, 'asks provider for one genuine alternative');
   runInContext('drawRoute()', directions.context);
   assert.equal(requests.length, 1, 'same endpoints do not duplicate requests');
   requests[0].resolve(response()); await flush();
@@ -166,7 +179,6 @@ async function checkFrontend() {
   assert.deepEqual(road(), [], 'HTTP failure leaves no route');
   assert.equal(retry.hidden, false, 'HTTP failure offers retry');
   for (const result of [{ code: 'NoRoute', routes: [] }, { code: 'Ok', routes: [] },
-    { code: 'Ok', warnings: [{ code: 205 }], routes: [{ geometry: { type: 'LineString', coordinates: [[106, 10], [107, 11]] }, distance: 10 }] },
   { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: [] }, distance: 0 }] },
   { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: [[106, 10], [181, 10]] }, distance: 10 }] },
   { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: [[106, 10], [107, 11]] }, distance: -1 }] }]) {
@@ -177,6 +189,61 @@ async function checkFrontend() {
   retry.onclick(); await flush(); requests.at(-1).reject(new Error('network unavailable')); await flush();
   assert.deepEqual(road(), [], 'network failure leaves no route');
   assert.equal(retry.hidden, false, 'network failure offers retry');
+  const alternate = () => JSON.parse(runInContext('JSON.stringify(alternativeRoute.getLatLngs())', directions.context));
+  const shorter = { geometry: { type: 'LineString', coordinates: [[106.71, 10.77], [106.72, 10.78], [106.73, 10.79]] }, distance: 1000 };
+  const longer = { geometry: { type: 'LineString', coordinates: [[106.74, 10.77], [106.75, 10.78], [106.76, 10.79]] }, distance: 1500 };
+  const completeRoutes = async (routes, warnings = []) => {
+    retry.onclick(); await flush();
+    assert.deepEqual(road(), [], 'refresh clears primary');
+    assert.deepEqual(alternate(), [], 'refresh clears alternative');
+    requests.at(-1).resolve({ ok: true, json: async () => ({ code: 'Ok', routes, warnings }) }); await flush();
+  };
+  const crossBorder = { geometry: { type: 'LineString', coordinates: [[106.7009, 10.7769], [106.173, 11.081], [105.806, 11.267], [104.9282, 11.5564]] }, distance: 230000 };
+  await completeRoutes([crossBorder], [{ code: 205 }]);
+  assert.deepEqual(road(), crossBorder.geometry.coordinates.map(([lon, lat]) => [lat, lon]), 'long route retains provider geometry despite shortest-search warning');
+  assert.equal(retry.hidden, true, 'warning does not reject valid long route');
+  await completeRoutes([longer, shorter]);
+  assert.deepEqual(road(), shorter.geometry.coordinates.map(([lon, lat]) => [lat, lon]), 'primary is shortest supplied route');
+  assert.deepEqual(alternate(), longer.geometry.coordinates.map(([lon, lat]) => [lat, lon]), 'alternative uses genuine provider geometry');
+  assert.equal(directions.document.getElementById('route-options').hidden, false);
+  assert.equal(directions.document.getElementById('secondary-option').hidden, false);
+  assert.equal(directions.document.getElementById('route-primary').checked, true);
+  const primaryColor = runInContext('roadRoute.style.color', directions.context);
+  const secondaryColor = runInContext('alternativeRoute.style.color', directions.context);
+  assert.notEqual(primaryColor, secondaryColor, 'selected route visibly differs');
+  directions.document.getElementById('route-secondary').onchange();
+  assert.equal(runInContext('selectedRoute', directions.context), 1);
+  assert.equal(runInContext('alternativeRoute.style.color', directions.context), primaryColor, 'radio highlights alternate');
+  assert.equal(directions.document.getElementById('route-secondary').checked, true);
+  runInContext('roadRoute.click()', directions.context);
+  assert.equal(runInContext('selectedRoute', directions.context), 0, 'clicking route selects it');
+  assert.equal(directions.document.getElementById('route-primary').checked, true);
+  assert.equal(runInContext('roadRoute.style.color', directions.context), primaryColor);
+  runInContext('selectRoadRoute(9)', directions.context);
+  assert.equal(runInContext('selectedRoute', directions.context), 0, 'invalid selection ignored');
+  await completeRoutes([shorter]);
+  assert.deepEqual(alternate(), [], 'single route does not invent alternative');
+  assert.equal(directions.document.getElementById('secondary-option').hidden, true);
+  await completeRoutes([shorter, shorter]);
+  assert.deepEqual(alternate(), [], 'duplicate geometry does not count as alternative');
+  assert.equal(directions.document.getElementById('secondary-option').hidden, true);
+  await completeRoutes([shorter, { ...longer, distance: -1 }]);
+  assert.deepEqual(road(), [], 'invalid alternative rejects whole provider response');
+  assert.deepEqual(alternate(), []);
+  assert.equal(retry.hidden, false);
+  directions.context.point = point;
+  runInContext('applyLocation(point)', directions.context);
+  const bounds = JSON.stringify(directions.map.bounds);
+  await completeRoutes([shorter, longer]);
+  assert.equal(JSON.stringify(directions.map.bounds), bounds, 'route response preserves fresh GPS follow');
+  directions.document.getElementById('follow-gps').checked = false;
+  await completeRoutes([longer, shorter]);
+  assert.deepEqual(JSON.parse(JSON.stringify(directions.map.bounds)), [shorter, longer].flatMap(route => route.geometry.coordinates.map(([lon, lat]) => [lat, lon])), 'route frames both geometries with GPS follow disabled');
+  retry.onclick(); await flush();
+  requests.at(-1).resolve({ ok: true, json: async () => ({ code: 'DistanceExceeded', routes: [] }) }); await flush();
+  assert.deepEqual(road(), [], 'provider distance limit clears primary');
+  assert.deepEqual(alternate(), [], 'provider distance limit clears alternative');
+  assert.equal(retry.hidden, false, 'provider distance limit offers retry');
 }
 
 try {
@@ -237,7 +304,7 @@ try {
   await a.stop();
   await a.start();
   assert.deepEqual(await a.invoke('GetState'), expected, 'reconnect snapshot');
-  console.log('PASS: road routing geometry, shortest search limit, cancellation/retry, Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
+  console.log('PASS: road routing geometry, long routes, cancellation/retry, Google Maps links, A/B import, theme, frontend reconnect, assets, route/GPS validation, two viewers.');
 } finally {
   await Promise.all(connections.map(connection => connection.stop()));
 }

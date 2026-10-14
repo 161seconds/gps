@@ -12,11 +12,12 @@ const map = L.map('map').setView([10.7769, 106.7009], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Routing: <a href="https://valhalla.github.io/valhalla/">Valhalla</a> / <a href="https://www.fossgis.de/">FOSSGIS</a>', maxZoom: 19 }).addTo(map);
 const trail = L.polyline([], { color: '#17695e', weight: 3 }).addTo(map);
 const roadRoute = L.polyline([], { color: '#c53c65', weight: 5, opacity: .9 }).addTo(map);
+const alternativeRoute = L.polyline([], { color: '#718da0', weight: 4, opacity: .65 }).addTo(map);
 const connection = new signalR.HubConnectionBuilder().withUrl('/hubs/tracking').withAutomaticReconnect().build();
 let latest, marker, circle, startMarker, endMarker, startPoint, endPoint, selecting;
 let routeSequence = -1, watchId, generation = 0, activeRequest, lastGpsSent = 0;
 let connecting = false, syncing = true, buffered = [], routeSaving = false, routePending, deferredRoute;
-let directionsRequest, directionsKey;
+let directionsRequest, directionsKey, roadRoutes = [], selectedRoute = 0;
 function error(message = '') { $('error').textContent = message; $('error').hidden = !message; }
 function state(message, live = false) { $('connection').textContent = message; $('connection').classList.toggle('live', live); }
 function coordinates(point) { return point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : 'Chưa chọn'; }
@@ -32,8 +33,12 @@ function applyLocation(point) {
   latest = point; const latlng = [point.latitude, point.longitude];
   if (!marker) {
     marker = L.circleMarker(latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#2586c7', fillOpacity: 1 }).addTo(map).bindTooltip('GPS hiện tại');
-    circle = L.circle(latlng, { radius: point.accuracy, color: '#2586c7', weight: 1, fillOpacity: .1 }).addTo(map); map.setView(latlng, 16);
-  } else { marker.setLatLng(latlng); circle.setLatLng(latlng).setRadius(point.accuracy); }
+    circle = L.circle(latlng, { radius: point.accuracy, color: '#2586c7', weight: 1, fillOpacity: .1 }).addTo(map);
+    if ($('follow-gps').checked) map.setView(latlng, 16);
+  } else {
+    marker.setLatLng(latlng); circle.setLatLng(latlng).setRadius(point.accuracy);
+    if ($('follow-gps').checked) map.panTo(latlng, { animate: true });
+  }
   // shortcut: only 200 samples stay in this tab; persist history when longer tracking is needed.
   trail.setLatLngs([...trail.getLatLngs(), L.latLng(...latlng)].slice(-200));
   $('coordinates').textContent = coordinates(point); $('accuracy').textContent = `± ${point.accuracy.toFixed(1)} m`; updateAge();
@@ -51,11 +56,25 @@ function drawRoute() {
   }
   findDirections();
 }
+function selectRoadRoute(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= roadRoutes.length) return;
+  selectedRoute = index;
+  for (const [i, layer] of [roadRoute, alternativeRoute].entries()) {
+    const selected = i === index;
+    layer.setStyle({ color: selected ? '#c53c65' : '#718da0', weight: selected ? 6 : 4, opacity: selected ? .95 : .65 });
+    $(`route-${i === 0 ? 'primary' : 'secondary'}`).checked = selected;
+  }
+  [roadRoute, alternativeRoute][index].bringToFront();
+  marker?.bringToFront();
+  const distance = (roadRoutes[index].distance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+  $('directions-status').textContent = `${distance} km · Tuyến ${index + 1}${roadRoutes.length === 1 ? ' · Chỉ có một tuyến phù hợp' : ''}`;
+}
 async function findDirections(force = false) {
   const enabled = $('routing').checked, key = JSON.stringify([enabled, startPoint, endPoint]);
   $('routing').disabled = !startPoint || !endPoint;
   if (!force && key === directionsKey) return;
-  directionsKey = key; directionsRequest?.abort(); directionsRequest = undefined; roadRoute.setLatLngs([]);
+  directionsKey = key; directionsRequest?.abort(); directionsRequest = undefined;
+  roadRoutes = []; roadRoute.setLatLngs([]); alternativeRoute.setLatLngs([]); $('route-options').hidden = true;
   $('directions-retry').hidden = true; $('directions-status').hidden = !enabled;
   if (!enabled) return;
   if (!startPoint || !endPoint) { $('directions-status').textContent = 'Chọn đủ điểm đầu và điểm cuối.'; return; }
@@ -69,25 +88,32 @@ async function findDirections(force = false) {
     timeout = setTimeout(() => request.abort(), 15000);
     const query = {
       locations: [startPoint, endPoint].map(point => ({ lat: point.latitude, lon: point.longitude, search_cutoff: 200 })),
-      costing: 'auto', costing_options: { auto: { shortest: true, disable_hierarchy_pruning: true } },
-      format: 'osrm', shape_format: 'geojson'
+      costing: 'auto', costing_options: { auto: { shortest: true } },
+      format: 'osrm', shape_format: 'geojson', alternates: 1
     };
-    // shortcut: public Valhalla caps exact shortest searches; use a private server for longer routes.
+    // shortcut: hierarchical search prioritizes distance without guaranteeing the global minimum; self-host for exact shortest routes.
     const response = await fetch(`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(query))}`, { signal: request.signal });
     const result = await response.json();
     if (directionsRequest !== request) return;
-    if (result.warnings?.some(warning => warning.code === 205)) {
-      message = 'Tuyến vượt giới hạn tìm đường ngắn nhất của dịch vụ. Chọn hai điểm gần hơn.';
-      throw new Error('Shortest search limit');
-    }
-    const route = result.routes?.[0], points = route?.geometry?.coordinates;
-    if (!response.ok || result.code !== 'Ok' || route?.geometry?.type !== 'LineString' ||
-      !Array.isArray(points) || points.length < 2 || !Number.isFinite(route.distance) || route.distance < 0 ||
-      !points.every(point => Array.isArray(point) && point.length >= 2 && Number.isFinite(point[0]) && Math.abs(point[0]) <= 180 && Number.isFinite(point[1]) && Math.abs(point[1]) <= 90))
+    const routes = Array.isArray(result.routes) ? result.routes.slice(0, 2) : [];
+    if (!response.ok || result.code !== 'Ok' || !routes.length || !routes.every(route => {
+      const points = route?.geometry?.coordinates;
+      return route?.geometry?.type === 'LineString' && Array.isArray(points) && points.length >= 2 &&
+        Number.isFinite(route.distance) && route.distance >= 0 &&
+        points.every(point => Array.isArray(point) && point.length >= 2 && Number.isFinite(point[0]) && Math.abs(point[0]) <= 180 && Number.isFinite(point[1]) && Math.abs(point[1]) <= 90);
+    }))
       throw new Error('Invalid road route');
-    const latlngs = points.map(([longitude, latitude]) => [latitude, longitude]);
-    roadRoute.setLatLngs(latlngs); map.fitBounds(latlngs, { padding: [24, 24], maxZoom: 16 });
-    $('directions-status').textContent = `${(route.distance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} km · Ô tô`;
+    routes.sort((a, b) => a.distance - b.distance);
+    if (routes.length === 2 && JSON.stringify(routes[0].geometry.coordinates) === JSON.stringify(routes[1].geometry.coordinates)) routes.pop();
+    roadRoutes = routes;
+    for (const [index, route] of routes.entries()) {
+      [roadRoute, alternativeRoute][index].setLatLngs(route.geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]));
+      $(`${index === 0 ? 'primary' : 'secondary'}-distance`).textContent = `${(route.distance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} km`;
+    }
+    $('route-options').hidden = false; $('secondary-option').hidden = routes.length < 2;
+    selectRoadRoute(0);
+    if (!$('follow-gps').checked || !latest || Date.now() - Date.parse(latest.receivedAt) > 15000)
+      map.fitBounds(routes.flatMap(route => route.geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude])), { padding: [24, 24], maxZoom: 16 });
   } catch {
     if (directionsRequest !== request) return;
     $('directions-status').textContent = request.signal.aborted ? 'Tìm đường quá lâu. Thử lại.' : message;
@@ -204,4 +230,8 @@ map.on('click', event => {
 for (const endpoint of ['start', 'end']) $(`${endpoint}-link-form`).onsubmit = event => { event.preventDefault(); useMapLink(endpoint); };
 $('choose-start').onclick = () => choose('start'); $('choose-end').onclick = () => choose('end'); $('gps').onclick = startGps; $('stop').onclick = stop; $('retry').onclick = connect;
 $('routing').onchange = () => findDirections(); $('directions-retry').onclick = () => findDirections(true);
+$('route-primary').onchange = () => selectRoadRoute(0); $('route-secondary').onchange = () => selectRoadRoute(1);
+roadRoute.on('click', () => selectRoadRoute(0)); alternativeRoute.on('click', () => selectRoadRoute(1));
+$('follow-gps').onchange = () => { if ($('follow-gps').checked && latest) map.panTo([latest.latitude, latest.longitude], { animate: true }); };
+map.on('dragstart', () => { $('follow-gps').checked = false; });
 setInterval(updateAge, 1000); window.addEventListener('pagehide', stop); connect();

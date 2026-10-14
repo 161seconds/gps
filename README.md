@@ -23,9 +23,13 @@ Có thể dán link Google Maps vào ô điểm đầu/cuối, nhấn **Dùng li
 
 Nút **Chế độ tối / Chế độ sáng** ở đầu trang đổi giao diện, nhớ lựa chọn trên thiết bị. Lần đầu theo giao diện hệ thống; nền bản đồ giữ màu OpenStreetMap.
 
-Bật **Tìm đường ô tô ngắn nhất** sau khi chọn hai điểm. Tuyến màu hồng lấy từ Valhalla trên mạng đường OpenStreetMap, tối ưu khoảng cách, tuân theo đường một chiều và hạn chế ô tô trong dữ liệu bản đồ. Đổi điểm sẽ tự tìm lại; lỗi hoặc không có đường sẽ xóa tuyến, không thay bằng đường thẳng. Tọa độ được ghép vào đường gần nhất trong phạm vi 200 m; không vẽ đoạn nối giả từ điểm chọn tới đường. Điểm GPS độc lập với tuyến này.
+Bật **Tìm đường ô tô** sau khi chọn hai điểm. Valhalla ưu tiên khoảng cách và tìm tối đa một tuyến phụ trên mạng đường OpenStreetMap, tuân theo đường một chiều và hạn chế ô tô trong dữ liệu bản đồ. Hỗ trợ tuyến dài và xuyên biên giới khi có đường kết nối; không bảo đảm ngắn nhất tuyệt đối. Bấm chọn **Tuyến 1 / Tuyến 2** hoặc bấm đường trên bản đồ: tuyến đang chọn màu hồng, tuyến còn lại màu xanh xám, mỗi tuyến có chiều dài riêng; tuyến ít km hơn trong các kết quả được xếp trước. Có nơi chỉ tìm được một tuyến phù hợp; ứng dụng không tạo tuyến phụ giả. Đổi điểm sẽ tự tìm lại; lỗi hoặc không có đường sẽ xóa tuyến, không thay bằng đường thẳng. Tọa độ được ghép vào đường gần nhất trong phạm vi 200 m; không vẽ đoạn nối giả từ điểm chọn tới đường. Lựa chọn tuyến chỉ áp dụng trong tab hiện tại.
 
-Định tuyến dùng [dịch vụ công cộng FOSSGIS](https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/), gửi tọa độ hai điểm tới dịch vụ, tối đa một yêu cầu/giây mỗi tab. Dịch vụ không đảm bảo hoạt động liên tục; dữ liệu đường có thể thiếu hoặc cũ. Chế độ `shortest` và `disable_hierarchy_pruning` tối ưu khoảng cách; nếu máy chủ cảnh báo vượt giới hạn tìm kiếm đầy đủ (`205`), ứng dụng báo lỗi, không vẽ tuyến chưa được đảm bảo ngắn nhất. Demo lưu chế độ tìm đường riêng từng tab; dùng máy chủ Valhalla riêng khi cần tuyến dài hoặc tải lớn.
+Chấm GPS di chuyển theo vị trí điện thoại thực tế, độc lập với tuyến đường. **Theo vị trí GPS** bật mặc định: bản đồ tự căn giữa theo từng cập nhật; tắt hoặc kéo bản đồ để xem nơi khác, bật lại để quay về GPS. Tuyến tải xong không kéo bản đồ ra khỏi GPS đang cập nhật. Không ép chấm GPS vào tuyến đã chọn hoặc tự tính lại tuyến khi đi lệch.
+
+Định tuyến dùng [dịch vụ công cộng FOSSGIS](https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/), gửi tọa độ hai điểm tới dịch vụ, tối đa một yêu cầu/giây mỗi tab. Dịch vụ không đảm bảo hoạt động liên tục; dữ liệu đường có thể thiếu hoặc cũ. `shortest: true` ưu tiên khoảng cách, dùng tìm kiếm phân cấp để hỗ trợ tuyến dài; không yêu cầu tìm kiếm đầy đủ nên không chặn tuyến do cảnh báo `205`. Các lỗi thật như không có đường hoặc vượt giới hạn khoảng cách của máy chủ vẫn báo lỗi. Demo lưu chế độ tìm đường riêng từng tab; dùng máy chủ Valhalla riêng khi cần bảo đảm ngắn nhất tuyệt đối hoặc tải lớn.
+
+Đây là tuyến ô tô tham khảo, chưa xét kích thước/tải trọng xe hàng, quyền vận tải, thủ tục hoặc cửa khẩu được phép. Demo chỉ có A/B; dự án chính cần truyền cửa khẩu bắt buộc thành điểm đi qua và kiểm tra điều kiện vận chuyển riêng.
 
 ## Điện thoại cần HTTPS
 
@@ -43,7 +47,7 @@ Mở URL HTTPS do tunnel trả về trên cả điện thoại và máy tính. G
 npm run check
 ```
 
-Self-check kiểm tra giao diện bằng Node, định tuyến với phản hồi mẫu (geometry, lỗi, hủy tuyến cũ), hai kết nối SignalR thật: điểm đầu/cuối, GPS phát đến cả hai màn, validation, bỏ điểm GPS cũ, snapshot khi kết nối lại. Server phải đang chạy. Có thể đổi URL bằng biến môi trường `GPS_URL`.
+Self-check kiểm tra giao diện bằng Node, hai tuyến với phản hồi mẫu (chọn tuyến, geometry, lỗi, hủy tuyến cũ), theo GPS, hai kết nối SignalR thật: điểm đầu/cuối, GPS phát đến cả hai màn, validation, bỏ điểm GPS cũ, snapshot khi kết nối lại. Server phải đang chạy. Có thể đổi URL bằng biến môi trường `GPS_URL`.
 
 ## Giới hạn
 

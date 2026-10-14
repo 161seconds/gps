@@ -7,10 +7,10 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>GPS realtime</title>
     <link rel="stylesheet" href="/vendor/leaflet.css">
-    <link rel="stylesheet" href="/style.css?v=9">
+    <link rel="stylesheet" href="/style.css?v=10">
     <script defer src="/vendor/leaflet.js"></script>
     <script defer src="/vendor/signalr.min.js"></script>
-    <script defer src="/app.js?v=9"></script>
+    <script defer src="/app.js?v=11"></script>
 </head>
 
 <body>
@@ -48,13 +48,18 @@
                 <label for="end-coordinates">Tọa độ điểm cuối</label><input id="end-coordinates" readonly
                     value="Chưa chọn">
                 <p id="route-status" role="status">Chưa có hai điểm.</p>
-                <label class="route-mode"><input id="routing" type="checkbox" disabled>Tìm đường ô tô ngắn nhất</label>
+                <label class="route-mode"><input id="routing" type="checkbox" disabled>Tìm đường ô tô</label>
                 <p id="directions-status" role="status" hidden></p><button id="directions-retry" class="secondary"
                     type="button" hidden>Thử tìm lại</button>
+                <fieldset id="route-options" class="route-options" aria-label="Chọn tuyến đường" hidden>
+                    <label class="route-choice"><input id="route-primary" type="radio" name="road-route" checked><span>Tuyến 1</span><b id="primary-distance"></b></label>
+                    <label id="secondary-option" class="route-choice"><input id="route-secondary" type="radio" name="road-route"><span>Tuyến 2</span><b id="secondary-distance"></b></label>
+                </fieldset>
                 <hr>
                 <h2>GPS của điện thoại</h2>
                 <div class="buttons"><button id="gps">Bật GPS</button><button id="stop" class="secondary"
                         disabled>Dừng</button></div>
+                <label class="route-mode"><input id="follow-gps" type="checkbox" checked>Theo vị trí GPS</label>
                 <p id="sharing" role="status">Chưa gửi vị trí.</p><button id="retry" class="secondary" hidden>Kết nối
                     lại</button>
                 <p id="error" role="alert" hidden></p>
@@ -66,7 +71,7 @@
                 </div>
                 <div id="map" aria-label="Bản đồ điểm đầu, điểm cuối và GPS hiện tại"></div>
                 <div class="map-caption"><span><i></i> GPS hiện tại · Vệt di chuyển</span><span><i
-                            class="route-key"></i> Tuyến ô tô</span></div>
+                            class="route-key"></i> Tuyến đang chọn</span><span><i class="route-key alternative-key"></i> Tuyến còn lại</span></div>
                 <dl>
                     <div>
                         <dt>Vị trí hiện tại</dt>
